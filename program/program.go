@@ -44,16 +44,29 @@ func (m Model) footerView() string {
 	return lipgloss.JoinHorizontal(lipgloss.Center, line, info)
 }
 
+type view int
+
+const (
+	suspenseView view = iota
+	selectActionView
+	selectAppsView
+	benchmarkRunView
+	benchmarkResultsView
+	allMetricsView
+)
+
 type Model struct {
+	view          view
 	suspense      suspense.Model
 	workspace     workspace.Workspace
-	output        string
 	viewport      viewport.Model
 	viewportTitle string
 	width         int
 	height        int
 	benchmarkData benchmarkData
 	progress      progress.Model
+	selectAction  selectActionModel
+	selectApps    appSelectionModel
 }
 
 type benchmarkData struct {
@@ -100,18 +113,58 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case workspace.DoneMsg:
 		m.workspace = msg.Workspace
+		m.view = selectActionView
+
+		m.selectAction = newActionsList(m.width)
+
+		actionModel, cmd := m.selectAction.Update(msg)
+		m.selectAction = actionModel.(selectActionModel)
+
+		cmds = append(cmds, cmd)
+		return m, tea.Batch(cmds...)
+
+	case actionSelectedMsg:
+		switch msg.action {
+		case runBenchmark:
+			m.view = selectAppsView
+
+			m.selectApps = newAppSelectionList(m.width, m.workspace.Applications)
+
+			selectModel, cmd := m.selectApps.Update(msg)
+			m.selectApps = selectModel.(appSelectionModel)
+
+			cmds = append(cmds, cmd)
+			return m, tea.Batch(cmds...)
+
+		case viewMetrics:
+			m.view = allMetricsView
+			metrics, err := benchmark.ReadAllMetrics()
+
+			if err != nil {
+				m.viewport.SetContent(err.Error())
+				return m, nil
+			}
+
+			renderBenchmarkMetrics(&m, metrics)
+
+			return m, nil
+		}
+
+	case appsSelectedMsg:
+		m.view = benchmarkRunView
+		m.benchmarkData.completed = 0
 
 		return m, tea.Batch(
-			m.progress.SetPercent(m.getProgressIncrement()),
+			m.progress.SetPercent(0.0),
 			func() tea.Msg {
-				return benchmark.StartMsg{StartTime: time.Now()}
+				return benchmark.StartMsg{StartTime: time.Now(), Apps: msg.apps}
 			},
 		)
 
 	case benchmark.StartMsg:
 		m.benchmarkData.completed = 0
 		m.benchmarkData.benchmarks = make([]benchmark.Benchmark, 0)
-		return m, benchmark.New(m.workspace, "New benchmark")
+		return m, benchmark.New(msg.Apps, "New benchmark")
 
 	case workspace.ErrMsg:
 		return m, tea.Quit
@@ -137,7 +190,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		setViewportContent(&m, msg.Benchmarks)
 		m.viewport, cmd = m.viewport.Update(msg)
 		m.suspense.Loading = false
-		return m, cmd
+		m.view = benchmarkResultsView
+
+		return m, m.progress.SetPercent(0.0)
 
 	case spinner.TickMsg:
 		if m.suspense.Loading {
@@ -157,27 +212,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		keyMsg := msg.String()
 		switch keyMsg {
-		case "ctrl+p":
-			metrics, err := benchmark.ReadAllMetrics()
-
-			if err != nil {
-				m.viewport.SetContent(err.Error())
-				return m, nil
+		case "backspace":
+			if m.view == allMetricsView {
+				m.view = selectActionView
 			}
 
-			//metrics = utils.Filter(metrics, func(bm benchmark.Benchmark) bool {
-			//	return bm.AppName == m.workspace.Applications[0].Name
-			//})
+			if m.view == benchmarkResultsView {
+				m.view = selectActionView
+			}
 
-			renderBenchmarkMetrics(&m, metrics)
+			if m.view == selectAppsView {
+				m.view = selectActionView
+			}
 
-			return m, nil
+			cmds = append(cmds, cmd)
 
-		case "q":
-			setViewportContent(&m, m.benchmarkData.benchmarks)
-			return m, nil
-
-		case "ctrl+q":
+		case "ctrl+q", "ctrl+c":
 			return m, tea.Quit
 		}
 	}
@@ -186,11 +236,44 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.viewport, cmd = m.viewport.Update(msg)
 	cmds = append(cmds, cmd)
 
+	if m.view == selectActionView {
+		actionModel, cmd := m.selectAction.Update(msg)
+		m.selectAction = actionModel.(selectActionModel)
+		cmds = append(cmds, cmd)
+	}
+
+	if m.view == selectAppsView {
+		actionModel, cmd := m.selectApps.Update(msg)
+		m.selectApps = actionModel.(appSelectionModel)
+		cmds = append(cmds, cmd)
+	}
+
 	return m, tea.Batch(cmds...)
 }
 
 func (m Model) View() string {
-	if m.suspense.Loading {
+	if m.view == suspenseView {
+		return lipgloss.JoinVertical(
+			lipgloss.Left,
+			lipgloss.NewStyle().Padding(1, 1).Render(m.suspense.View()),
+		)
+	}
+
+	if m.view == selectActionView {
+		return lipgloss.JoinVertical(
+			lipgloss.Left,
+			lipgloss.NewStyle().Padding(1, 1).Render(m.selectAction.View()),
+		)
+	}
+
+	if m.view == selectAppsView {
+		return lipgloss.JoinVertical(
+			lipgloss.Left,
+			lipgloss.NewStyle().Padding(1, 1).Render(m.selectApps.View()),
+		)
+	}
+
+	if m.view == benchmarkRunView {
 		return lipgloss.JoinVertical(
 			lipgloss.Left,
 			lipgloss.NewStyle().Padding(1, 1).Render(m.suspense.View()),
@@ -211,11 +294,11 @@ func (m Model) View() string {
 }
 
 func (m Model) getProgressIncrement() float64 {
-	return 1.0 / float64(1.0+len(m.workspace.Applications))
+	return 1.0 / float64(len(m.selectApps.apps))
 }
 
 func (m Model) handleBenchmarkBuild() (Model, tea.Cmd) {
-	if m.benchmarkData.completed == len(m.workspace.Applications) {
+	if m.benchmarkData.completed == len(m.selectApps.apps) {
 		return m, tea.Sequence(
 			m.progress.SetPercent(1.0),
 			// wait for the progress bar to finish animating
@@ -230,6 +313,7 @@ func (m Model) handleBenchmarkBuild() (Model, tea.Cmd) {
 
 func New() {
 	program := Model{
+		view:     suspenseView,
 		suspense: suspense.New("Scanning workspace...", true),
 		progress: progress.New(progress.WithSolidFill(ui.Cyan)),
 	}
@@ -263,7 +347,7 @@ func setViewportContent(m *Model, benchmarks []benchmark.Benchmark) {
 		contents = append(contents, content)
 	}
 
-	m.output = lipgloss.NewStyle().
+	output := lipgloss.NewStyle().
 		Padding(0, 4).
 		Render(lipgloss.JoinVertical(
 			lipgloss.Left,
@@ -279,7 +363,7 @@ func setViewportContent(m *Model, benchmarks []benchmark.Benchmark) {
 
 	m.viewport = viewport.New(vWidth, vHeight)
 	m.viewport.YPosition = headerHeight
-	m.viewport.SetContent(m.output)
+	m.viewport.SetContent(output)
 }
 
 func renderBenchmarkMetrics(m *Model, metrics []benchmark.Benchmark) {
@@ -304,7 +388,7 @@ func renderBenchmarkMetrics(m *Model, metrics []benchmark.Benchmark) {
 		contents = append(contents, content)
 	}
 
-	m.output = lipgloss.NewStyle().
+	output := lipgloss.NewStyle().
 		Padding(0, 4).
 		Render(lipgloss.JoinVertical(
 			lipgloss.Left,
@@ -320,5 +404,5 @@ func renderBenchmarkMetrics(m *Model, metrics []benchmark.Benchmark) {
 
 	m.viewport = viewport.New(vWidth, vHeight)
 	m.viewport.YPosition = headerHeight
-	m.viewport.SetContent(m.output)
+	m.viewport.SetContent(output)
 }

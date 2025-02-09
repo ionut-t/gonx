@@ -3,6 +3,7 @@ package benchmark
 import "time"
 
 type StartMsg struct {
+	Apps      []string
 	StartTime time.Time
 }
 

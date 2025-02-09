@@ -14,7 +14,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
 	"github.com/ionut-t/gonx/utils"
-	"github.com/ionut-t/gonx/workspace"
 )
 
 const folderName = ".gonx"
@@ -139,9 +138,7 @@ func (b *Benchmark) WriteStats(appName string, startTime time.Time) error {
 	return os.WriteFile(benchmarkFilePath, content, 0644)
 }
 
-func New(ws workspace.Workspace, description string) tea.Cmd {
-	apps := ws.Applications
-
+func New(apps []string, description string) tea.Cmd {
 	// Create channel for build results
 	results := make(chan tea.Msg, len(apps)*2) // Buffer for start and complete/fail messages
 
@@ -154,7 +151,7 @@ func New(ws workspace.Workspace, description string) tea.Cmd {
 			// If reset fails, send failed messages for all apps
 			for _, app := range apps {
 				results <- BuildFailedMsg{
-					App:   app.Name,
+					App:   app,
 					Error: fmt.Errorf("workspace reset failed: %v", err),
 				}
 			}
@@ -168,26 +165,26 @@ func New(ws workspace.Workspace, description string) tea.Cmd {
 
 			// Send start message
 			results <- BuildStartMsg{
-				App:       app.Name,
+				App:       app,
 				StartTime: startTime,
 			}
 
 			// Run build
-			cmdBuild := exec.Command("nx", "build", app.Name)
+			cmdBuild := exec.Command("nx", "build", app)
 			cmdBuild.Env = append(os.Environ(), "NX_DAEMON=false")
 			if err := cmdBuild.Run(); err != nil {
 				results <- BuildFailedMsg{
-					App:       app.Name,
+					App:       app,
 					StartTime: startTime,
 					Error:     fmt.Errorf("build failed: %v", err),
 				}
 				continue // Continue with next app even if one fails
 			}
 
-			stats, err := benchmark.calculateBundleSize(app.Name)
+			stats, err := benchmark.calculateBundleSize(app)
 			if err != nil {
 				results <- BuildFailedMsg{
-					App:       app.Name,
+					App:       app,
 					StartTime: startTime,
 					Error:     fmt.Errorf("bundle size calculation failed: %v", err),
 				}
@@ -195,10 +192,10 @@ func New(ws workspace.Workspace, description string) tea.Cmd {
 			}
 			benchmark.Stats = *stats
 
-			err = benchmark.WriteStats(app.Name, startTime)
+			err = benchmark.WriteStats(app, startTime)
 			if err != nil {
 				results <- BuildFailedMsg{
-					App:       app.Name,
+					App:       app,
 					StartTime: startTime,
 					Error:     fmt.Errorf("failed to write stats: %v", err),
 				}
@@ -206,7 +203,7 @@ func New(ws workspace.Workspace, description string) tea.Cmd {
 			}
 
 			results <- BuildCompleteMsg{
-				App:       app.Name,
+				App:       app,
 				Error:     nil,
 				StartTime: startTime,
 				Benchmark: benchmark,
