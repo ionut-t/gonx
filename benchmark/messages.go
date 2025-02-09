@@ -3,8 +3,9 @@ package benchmark
 import "time"
 
 type StartMsg struct {
-	Apps      []string
-	StartTime time.Time
+	Apps        []string
+	Description string
+	StartTime   time.Time
 }
 
 type BuildStartMsg struct {

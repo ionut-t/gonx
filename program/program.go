@@ -51,23 +51,25 @@ const (
 	suspenseView view = iota
 	selectActionView
 	selectAppsView
+	descriptionInputView
 	benchmarkRunView
 	benchmarkResultsView
 	allMetricsView
 )
 
 type Model struct {
-	view          view
-	suspense      suspense.Model
-	workspace     workspace.Workspace
-	viewport      viewport.Model
-	viewportTitle string
-	width         int
-	height        int
-	benchmarkData benchmarkData
-	progress      progress.Model
-	selectAction  selectActionModel
-	selectApps    appSelectionModel
+	view             view
+	suspense         suspense.Model
+	workspace        workspace.Workspace
+	viewport         viewport.Model
+	viewportTitle    string
+	width            int
+	height           int
+	benchmarkData    benchmarkData
+	progress         progress.Model
+	selectAction     selectActionModel
+	selectApps       appSelectionModel
+	descriptionInput descriptionInputModel
 }
 
 type benchmarkData struct {
@@ -172,20 +174,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case appsSelectedMsg:
+		m.view = descriptionInputView
+
+		m.descriptionInput = newDescription(m.width)
+
+		return m, tea.Batch(cmds...)
+
+	case descriptionInputMsg:
 		m.view = benchmarkRunView
 		m.benchmarkData.completed = 0
 
 		return m, tea.Batch(
 			m.progress.SetPercent(0.0),
 			func() tea.Msg {
-				return benchmark.StartMsg{StartTime: time.Now(), Apps: msg.apps}
+				return benchmark.StartMsg{StartTime: time.Now(), Apps: m.selectApps.apps, Description: string(msg)}
 			},
 		)
 
 	case benchmark.StartMsg:
 		m.benchmarkData.completed = 0
 		m.benchmarkData.benchmarks = make([]benchmark.Benchmark, 0)
-		return m, benchmark.New(msg.Apps, "New benchmark")
+		return m, benchmark.New(msg.Apps, msg.Description)
 
 	case workspace.ErrMsg:
 		return m, tea.Quit
@@ -269,49 +278,48 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 	}
 
+	if m.view == descriptionInputView {
+		inputModel, cmd := m.descriptionInput.Update(msg)
+		m.descriptionInput = inputModel.(descriptionInputModel)
+		cmds = append(cmds, cmd)
+	}
+
 	return m, tea.Batch(cmds...)
 }
 
 func (m Model) View() string {
-	if m.view == suspenseView {
-		return lipgloss.JoinVertical(
-			lipgloss.Left,
-			lipgloss.NewStyle().Padding(1, 1).Render(m.suspense.View()),
-		)
-	}
+	switch m.view {
+	case suspenseView:
+		return lipgloss.NewStyle().Padding(1, 1).Render(m.suspense.View())
 
-	if m.view == selectActionView {
-		return lipgloss.JoinVertical(
-			lipgloss.Left,
-			lipgloss.NewStyle().Padding(1, 1).Render(m.selectAction.View()),
-		)
-	}
+	case selectActionView:
+		return lipgloss.NewStyle().Padding(1, 1).Render(m.selectAction.View())
 
-	if m.view == selectAppsView {
-		return lipgloss.JoinVertical(
-			lipgloss.Left,
-			lipgloss.NewStyle().Padding(1, 1).Render(m.selectApps.View()),
-		)
-	}
+	case selectAppsView:
+		return lipgloss.NewStyle().Padding(1, 1).Render(m.selectApps.View())
 
-	if m.view == benchmarkRunView {
+	case benchmarkRunView:
 		return lipgloss.JoinVertical(
 			lipgloss.Left,
 			lipgloss.NewStyle().Padding(1, 1).Render(m.suspense.View()),
 			lipgloss.NewStyle().Padding(0, 1).Render(m.progress.View()),
 		)
-	}
 
-	return lipgloss.NewStyle().
-		Width(m.width).
-		Height(m.height).
-		Padding(1, 1).
-		Render(lipgloss.JoinVertical(
-			lipgloss.Center,
-			m.headerView(),
-			m.viewport.View(),
-			m.footerView(),
-		))
+	case descriptionInputView:
+		return lipgloss.NewStyle().Padding(1, 1).Render(m.descriptionInput.View())
+
+	default:
+		return lipgloss.NewStyle().
+			Width(m.width).
+			Height(m.height).
+			Padding(1, 1).
+			Render(lipgloss.JoinVertical(
+				lipgloss.Center,
+				m.headerView(),
+				m.viewport.View(),
+				m.footerView(),
+			))
+	}
 }
 
 func (m Model) getProgressIncrement() float64 {
@@ -392,11 +400,19 @@ func renderBenchmarkMetrics(m *Model, metrics []benchmark.Benchmark) {
 
 	var contents []string
 
+	getDescription := func(description string) string {
+		if description == "" {
+			return "-"
+		}
+
+		return description
+	}
+
 	for i, bm := range metrics {
 		content := lipgloss.JoinVertical(
 			lipgloss.Left,
 			ui.CyanFg.Render(fmt.Sprintf(" 🗓️ Recorded on %s at %s", bm.CreatedAt.Format("02/01/2006"), bm.CreatedAt.Format("15:04:05"))),
-			ui.CyanFg.Render(fmt.Sprintf(" 📝 Description: %s", bm.Description)),
+			ui.CyanFg.Render(fmt.Sprintf(" 📝 Description: %s", getDescription(bm.Description))),
 			ui.CyanFg.Render(fmt.Sprintf(" 📝 App: %s", bm.AppName)),
 			benchmark.RenderStats(bm),
 		)
