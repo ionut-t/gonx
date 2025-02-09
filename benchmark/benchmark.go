@@ -3,8 +3,6 @@ package benchmark
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/ionut-t/gonx/utils"
-	"github.com/ionut-t/gonx/workspace"
 	"log"
 	"os"
 	"os/exec"
@@ -13,56 +11,13 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
-	"github.com/ionut-t/gonx/suspense"
+	"github.com/ionut-t/gonx/utils"
+	"github.com/ionut-t/gonx/workspace"
 )
 
-const folder = ".gonx"
+const folderName = ".gonx"
 const benchmarkFile = "benchmarks.json"
-const filePath = folder + "/" + benchmarkFile
-
-type Model struct {
-	suspense  suspense.Model
-	benchmark Benchmark
-}
-
-type DoneMsg struct {
-	Benchmarks []Benchmark
-}
-
-type ErrMsg struct {
-	Err error
-}
-
-func (m Model) Init() tea.Cmd {
-	if m.suspense.Loading {
-		return m.suspense.Init()
-	}
-
-	return nil
-}
-
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	suspenseModel, cmd := m.suspense.Update(msg)
-	m.suspense = suspenseModel.(suspense.Model)
-
-	return m, cmd
-}
-
-func (m Model) View() string {
-	return m.suspense.View()
-}
-
-func CreateBenchmarkModel() {
-	loadingMessage := "Scanning workspace..."
-	bm := Model{
-		suspense: suspense.New(loadingMessage, true),
-	}
-
-	if _, err := tea.NewProgram(bm).Run(); err != nil {
-		fmt.Println("Error running program:", err)
-		os.Exit(1)
-	}
-}
+const benchmarkFilePath = folderName + "/" + benchmarkFile
 
 type Benchmark struct {
 	AppName     string     `json:"appName"`
@@ -71,11 +26,6 @@ type Benchmark struct {
 	Duration    float64    `json:"duration"`
 	Description string     `json:"description"`
 	Stats       buildStats `json:"stats"`
-}
-
-func (b *Benchmark) String() string {
-	return fmt.Sprintf("AppName: %s\nVersion: %s\nCreatedAt: %s\nDuration: %f\nDescription: %s\nStats: %v\n", b.AppName, b.Version, b.CreatedAt, b.Duration, b.Description, b.Stats)
-
 }
 
 func (b *Benchmark) Build(app string) error {
@@ -162,7 +112,7 @@ func (b *Benchmark) WriteStats(appName string, startTime time.Time) error {
 	}
 
 	var previousBenchmarks []json.RawMessage
-	currentValue, err := os.ReadFile(filePath)
+	currentValue, err := os.ReadFile(benchmarkFilePath)
 
 	if err == nil && len(currentValue) > 0 {
 		if err := json.Unmarshal(currentValue, &previousBenchmarks); err != nil {
@@ -178,49 +128,97 @@ func (b *Benchmark) WriteStats(appName string, startTime time.Time) error {
 		return err
 	}
 
-	err = os.MkdirAll(folder, 0755)
+	err = os.MkdirAll(folderName, 0755)
 
 	if err != nil {
 		return err
 	}
 
-	return os.WriteFile(filePath, content, 0644)
+	return os.WriteFile(benchmarkFilePath, content, 0644)
 }
 
-func New(ws workspace.Workspace, description string) ([]Benchmark, error) {
+func New(ws workspace.Workspace, description string) tea.Cmd {
 	apps := ws.Applications
 
-	var benchmarks []Benchmark
+	// Create channel for build results
+	results := make(chan tea.Msg, len(apps)*2) // Buffer for start and complete/fail messages
 
-	var err error
-
-	for _, app := range apps {
-		benchmark := Benchmark{Description: description}
-		startTime := time.Now()
-
-		err = benchmark.Build(app.Name)
-
-		if err != nil {
-			log.Printf("Build failed for %s: %v", app, err)
-			continue
+	// Run builds sequentially in a separate goroutine
+	go func() {
+		// First, run nx reset for the whole workspace
+		cmdReset := exec.Command("nx", "reset")
+		cmdReset.Env = append(os.Environ(), "NX_DAEMON=false")
+		if err := cmdReset.Run(); err != nil {
+			// If reset fails, send failed messages for all apps
+			for _, app := range apps {
+				results <- BuildFailedMsg{
+					App:   app.Name,
+					Error: fmt.Errorf("workspace reset failed: %v", err),
+				}
+			}
+			return
 		}
 
-		stats, err := benchmark.calculateBundleSize(app.Name)
+		// Run builds sequentially
+		for _, app := range apps {
+			startTime := time.Now()
+			benchmark := Benchmark{Description: description}
 
-		if err != nil {
-			log.Printf("Failed to calculate bundle size for %s: %v", app, err)
-		} else {
+			// Send start message
+			results <- BuildStartMsg{
+				App:       app.Name,
+				StartTime: startTime,
+			}
+
+			// Run build
+			cmdBuild := exec.Command("nx", "build", app.Name)
+			cmdBuild.Env = append(os.Environ(), "NX_DAEMON=false")
+			if err := cmdBuild.Run(); err != nil {
+				results <- BuildFailedMsg{
+					App:       app.Name,
+					StartTime: startTime,
+					Error:     fmt.Errorf("build failed: %v", err),
+				}
+				continue // Continue with next app even if one fails
+			}
+
+			stats, err := benchmark.calculateBundleSize(app.Name)
+			if err != nil {
+				results <- BuildFailedMsg{
+					App:       app.Name,
+					StartTime: startTime,
+					Error:     fmt.Errorf("bundle size calculation failed: %v", err),
+				}
+				continue
+			}
 			benchmark.Stats = *stats
 
 			err = benchmark.WriteStats(app.Name, startTime)
-
 			if err != nil {
-				panic(err)
+				results <- BuildFailedMsg{
+					App:       app.Name,
+					StartTime: startTime,
+					Error:     fmt.Errorf("failed to write stats: %v", err),
+				}
+				continue
+			}
+
+			results <- BuildCompleteMsg{
+				App:       app.Name,
+				Error:     nil,
+				StartTime: startTime,
+				Benchmark: benchmark,
 			}
 		}
+	}()
 
-		benchmarks = append(benchmarks, benchmark)
+	// Create commands to read all expected messages
+	var cmds []tea.Cmd
+	for i := 0; i < len(apps)*2; i++ { // *2 for start and complete/fail messages
+		cmds = append(cmds, func() tea.Msg {
+			return <-results
+		})
 	}
 
-	return benchmarks, err
+	return tea.Batch(cmds...)
 }

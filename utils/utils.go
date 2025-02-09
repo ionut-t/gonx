@@ -52,35 +52,6 @@ func CalculateDirSize(dirPath string) float32 {
 	return size
 }
 
-/*
-
-
-func FormatFileSize(sizeInBytes interface{}) string {
-	var kb float64
-
-	switch value := sizeInBytes.(type) {
-	case int:
-		kb = float64(value) / 1024
-	case float64:
-		kb = value / 1024
-	case float32:
-		kb = float64(value) / 1024
-	case int64:
-		kb = float64(value) / 1024
-	default:
-		return "Invalid input type"
-	}
-
-	if kb > 1024 {
-		mb := kb / 1024
-		return fmt.Sprintf("%.2fKB (%.2fMB)", kb, mb)
-	}
-
-	return fmt.Sprintf("%.2fKB", kb)
-}
-
-*/
-
 func FormatFileSize(bytes int64) string {
 	const unit = 1024
 

@@ -2,20 +2,20 @@ package suspense
 
 import (
 	"fmt"
+	"github.com/ionut-t/gonx/ui"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 type Model struct {
 	Loading bool
 	Message string
-	spinner spinner.Model
+	Spinner spinner.Model
 }
 
 func (m Model) Init() tea.Cmd {
-	return m.spinner.Tick
+	return m.Spinner.Tick
 }
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -28,7 +28,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case spinner.TickMsg:
 		var cmd tea.Cmd
-		m.spinner, cmd = m.spinner.Update(msg)
+		m.Spinner, cmd = m.Spinner.Update(msg)
 		return m, cmd
 	default:
 		return m, nil
@@ -36,15 +36,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	return fmt.Sprintf("\n\n   %s %s\n\n", m.spinner.View(), m.Message)
+	return fmt.Sprintf("%s %s", m.Spinner.View(), m.Message)
 }
 
 func New(message string, loading bool) Model {
 	suspense := Model{Message: message, Loading: loading}
 
-	suspense.spinner = spinner.New()
-	suspense.spinner.Spinner = spinner.Points
-	suspense.spinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	suspense.Spinner = spinner.New()
+	suspense.Spinner.Spinner = spinner.Points
+	suspense.Spinner.Style = ui.CyanFg
 
 	return suspense
 }

@@ -9,10 +9,6 @@ import (
 	"github.com/ionut-t/gonx/utils"
 )
 
-type LoadedMsg struct {
-	ws *Workspace
-}
-
 type Workspace struct {
 	Name         string        `json:"name"`
 	Applications []Application `json:"applications"`

@@ -2,6 +2,7 @@ package program
 
 import (
 	"fmt"
+	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -13,6 +14,7 @@ import (
 	"github.com/ionut-t/gonx/workspace"
 	"os"
 	"strings"
+	"time"
 )
 
 var (
@@ -32,7 +34,7 @@ var (
 const padding = 2
 
 func (m Model) headerView() string {
-	title := ui.Red.Render(titleStyle.Render("Benchmark"))
+	title := ui.RedFg.Render(titleStyle.Render("Benchmark"))
 	line := strings.Repeat("─", max(0, m.viewport.Width-lipgloss.Width(title)))
 	return lipgloss.JoinHorizontal(lipgloss.Center, title, line)
 }
@@ -44,12 +46,19 @@ func (m Model) footerView() string {
 }
 
 type Model struct {
-	suspense  suspense.Model
-	workspace workspace.Workspace
-	output    string
-	viewport  viewport.Model
-	width     int
-	height    int
+	suspense      suspense.Model
+	workspace     workspace.Workspace
+	output        string
+	viewport      viewport.Model
+	width         int
+	height        int
+	benchmarkData benchmarkData
+	progress      progress.Model
+}
+
+type benchmarkData struct {
+	completed  int
+	benchmarks []benchmark.Benchmark
 }
 
 func (m Model) Init() tea.Cmd {
@@ -87,38 +96,48 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.viewport.Width = vWidth
 		m.viewport.Height = vHeight
+		m.progress.Width = m.width - padding*2
 
 	case workspace.DoneMsg:
 		m.workspace = msg.Workspace
-		m.suspense.Message = "Building benchmarks..."
 
-		bmMsg := func() tea.Msg {
-			bm, err := benchmark.New(m.workspace, "New benchmark")
+		return m, tea.Batch(
+			m.progress.SetPercent(m.getProgressIncrement()),
+			func() tea.Msg {
+				return benchmark.StartMsg{StartTime: time.Now()}
+			},
+		)
 
-			if err != nil {
-				return benchmark.ErrMsg{Err: err}
-			}
-
-			return benchmark.DoneMsg{Benchmarks: bm}
-		}
-
-		return m, bmMsg
+	case benchmark.StartMsg:
+		m.benchmarkData.completed = 0
+		m.benchmarkData.benchmarks = make([]benchmark.Benchmark, 0)
+		return m, benchmark.New(m.workspace, "New benchmark")
 
 	case workspace.ErrMsg:
 		return m, tea.Quit
 
+	case benchmark.BuildStartMsg:
+		m.suspense.Message = fmt.Sprintf("Building %s application...", ui.CyanFg.Bold(true).Render(msg.App))
+		m.suspense.Loading = true
+		return m, m.suspense.Spinner.Tick
+
+	case benchmark.BuildCompleteMsg:
+		m.benchmarkData.completed++
+		m.benchmarkData.benchmarks = append(m.benchmarkData.benchmarks, msg.Benchmark)
+
+		return m.handleBenchmarkBuild()
+
+	case benchmark.BuildFailedMsg:
+		m.benchmarkData.completed++
+		m.suspense.Message = msg.Error.Error()
+
+		return m.handleBenchmarkBuild()
+
 	case benchmark.DoneMsg:
-		m.suspense.Loading = false
-
 		setViewportContent(&m, msg.Benchmarks)
-
 		m.viewport, cmd = m.viewport.Update(msg)
-		cmds = append(cmds, cmd)
-
-		return m, tea.Batch(cmds...)
-
-	case benchmark.ErrMsg:
-		return m, tea.Quit
+		m.suspense.Loading = false
+		return m, cmd
 
 	case spinner.TickMsg:
 		if m.suspense.Loading {
@@ -127,6 +146,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.suspense = suspenseModel.(suspense.Model)
 			return m, cmd
 		}
+		return m, nil
+
+	// FrameMsg is sent when the progress bar wants to animate itself
+	case progress.FrameMsg:
+		progressModel, cmd := m.progress.Update(msg)
+		m.progress = progressModel.(progress.Model)
+		return m, cmd
 
 	case tea.KeyMsg:
 		keyMsg := msg.String()
@@ -145,7 +171,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) View() string {
 	if m.suspense.Loading {
-		return m.suspense.View()
+		return lipgloss.JoinVertical(
+			lipgloss.Left,
+			lipgloss.NewStyle().Padding(1, 1).Render(m.suspense.View()),
+			lipgloss.NewStyle().Padding(0, 1).Render(m.progress.View()),
+		)
 	}
 
 	return lipgloss.NewStyle().
@@ -160,12 +190,28 @@ func (m Model) View() string {
 		))
 }
 
-func New() {
-	loadingMessage := "Scanning workspace..."
-	suspenseModel := suspense.New(loadingMessage, true)
+func (m Model) getProgressIncrement() float64 {
+	return 1.0 / float64(1.0+len(m.workspace.Applications))
+}
 
+func (m Model) handleBenchmarkBuild() (Model, tea.Cmd) {
+	if m.benchmarkData.completed == len(m.workspace.Applications) {
+		return m, tea.Sequence(
+			m.progress.SetPercent(1.0),
+			// wait for the progress bar to finish animating
+			tea.Tick(time.Millisecond*500, func(t time.Time) tea.Msg {
+				return benchmark.DoneMsg{Benchmarks: m.benchmarkData.benchmarks}
+			}),
+		)
+	}
+
+	return m, m.progress.IncrPercent(m.getProgressIncrement())
+}
+
+func New() {
 	program := Model{
-		suspense: suspenseModel,
+		suspense: suspense.New("Scanning workspace...", true),
+		progress: progress.New(progress.WithSolidFill(ui.Cyan)),
 	}
 
 	if _, err := tea.NewProgram(program, tea.WithAltScreen(), tea.WithMouseCellMotion()).Run(); err != nil {
@@ -205,23 +251,23 @@ func setViewportContent(m *Model, benchmarks []benchmark.Benchmark) {
 }
 
 func getBenchmarkContent(bm benchmark.Benchmark, windowWidth int) string {
-	border := ui.Cyan.Render(strings.Repeat("─", min(40, windowWidth-padding)))
+	border := ui.CyanFg.Render(strings.Repeat("─", min(50, windowWidth-padding)))
 
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
 		border,
-		fmt.Sprintf("Report for %s app:", ui.Cyan.Bold(true).Render(bm.AppName)),
+		fmt.Sprintf("Report for %s app:", ui.CyanFg.Bold(true).Render(bm.AppName)),
 		border,
-		ui.Green.Render(fmt.Sprintf(" 🕒 Build time: %.2fs", bm.Duration)),
-		ui.Green.Render(fmt.Sprintf(" 🎯 Main bundle: %s", utils.FormatFileSize(bm.Stats.Initial.Main))),
-		ui.Green.Render(fmt.Sprintf(" ⚙️ Runtime bundle: %s", utils.FormatFileSize(bm.Stats.Initial.Runtime))),
-		ui.Green.Render(fmt.Sprintf(" 🔧 Polyfills bundle: %s", utils.FormatFileSize(bm.Stats.Initial.Polyfills))),
-		ui.Yellow.Render(fmt.Sprintf(" 📦 Initial total: %s", utils.FormatFileSize(bm.Stats.Initial.Total))),
-		ui.Magenta.Render(fmt.Sprintf(" 📦 Lazy chunks total: %s", utils.FormatFileSize(bm.Stats.Lazy))),
-		ui.Blue.Render(fmt.Sprintf(" 📦 Bundle total: %s", utils.FormatFileSize(bm.Stats.Total))),
-		ui.Blue.Render(fmt.Sprintf(" 🎨 Styles total: %s", utils.FormatFileSize(bm.Stats.Styles))),
-		ui.Cyan.Render(fmt.Sprintf(" 📂 Assets total: %s", utils.FormatFileSize(bm.Stats.Assets))),
-		ui.Blue.Render(fmt.Sprintf(" 📊 Overall total: %s", utils.FormatFileSize(bm.Stats.OverallTotal))),
+		ui.GreenFg.Render(fmt.Sprintf(" 🕒 Build time: %.2fs", bm.Duration)),
+		ui.GreenFg.Render(fmt.Sprintf(" 🎯 Main bundle: %s", utils.FormatFileSize(bm.Stats.Initial.Main))),
+		ui.GreenFg.Render(fmt.Sprintf(" ⚙️ Runtime bundle: %s", utils.FormatFileSize(bm.Stats.Initial.Runtime))),
+		ui.GreenFg.Render(fmt.Sprintf(" 🔧 Polyfills bundle: %s", utils.FormatFileSize(bm.Stats.Initial.Polyfills))),
+		ui.YellowFg.Render(fmt.Sprintf(" 📦 Initial total: %s", utils.FormatFileSize(bm.Stats.Initial.Total))),
+		ui.MagentaFg.Render(fmt.Sprintf(" 📦 Lazy chunks total: %s", utils.FormatFileSize(bm.Stats.Lazy))),
+		ui.BlueFg.Render(fmt.Sprintf(" 📦 Bundle total: %s", utils.FormatFileSize(bm.Stats.Total))),
+		ui.BlueFg.Render(fmt.Sprintf(" 🎨 Styles total: %s", utils.FormatFileSize(bm.Stats.Styles))),
+		ui.CyanFg.Render(fmt.Sprintf(" 📂 Assets total: %s", utils.FormatFileSize(bm.Stats.Assets))),
+		ui.BlueFg.Render(fmt.Sprintf(" 📊 Overall total: %s", utils.FormatFileSize(bm.Stats.OverallTotal))),
 		border,
 	)
 }
