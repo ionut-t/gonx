@@ -3,6 +3,8 @@ package benchmark
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/ionut-t/gonx/ui"
 	"log"
 	"os"
 	"os/exec"
@@ -221,4 +223,36 @@ func New(ws workspace.Workspace, description string) tea.Cmd {
 	}
 
 	return tea.Batch(cmds...)
+}
+
+func ReadAllMetrics() ([]Benchmark, error) {
+	var metrics []Benchmark
+
+	bytes, err := os.ReadFile(benchmarkFilePath)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := json.Unmarshal(bytes, &metrics); err != nil {
+		return nil, err
+	}
+
+	return metrics, nil
+}
+
+func RenderStats(bm Benchmark) string {
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		ui.GreenFg.Render(fmt.Sprintf(" 🕒 Build time: %.2fs", bm.Duration)),
+		ui.GreenFg.Render(fmt.Sprintf(" 🎯 Main bundle: %s", utils.FormatFileSize(bm.Stats.Initial.Main))),
+		ui.GreenFg.Render(fmt.Sprintf(" ⚙️ Runtime bundle: %s", utils.FormatFileSize(bm.Stats.Initial.Runtime))),
+		ui.GreenFg.Render(fmt.Sprintf(" 🔧 Polyfills bundle: %s", utils.FormatFileSize(bm.Stats.Initial.Polyfills))),
+		ui.YellowFg.Render(fmt.Sprintf(" 📦 Initial total: %s", utils.FormatFileSize(bm.Stats.Initial.Total))),
+		ui.MagentaFg.Render(fmt.Sprintf(" 📦 Lazy chunks total: %s", utils.FormatFileSize(bm.Stats.Lazy))),
+		ui.BlueFg.Render(fmt.Sprintf(" 📦 Bundle total: %s", utils.FormatFileSize(bm.Stats.Total))),
+		ui.BlueFg.Render(fmt.Sprintf(" 🎨 Styles total: %s", utils.FormatFileSize(bm.Stats.Styles))),
+		ui.CyanFg.Render(fmt.Sprintf(" 📂 Assets total: %s", utils.FormatFileSize(bm.Stats.Assets))),
+		ui.BlueFg.Render(fmt.Sprintf(" 📊 Overall total: %s", utils.FormatFileSize(bm.Stats.OverallTotal))),
+	)
 }

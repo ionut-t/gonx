@@ -128,3 +128,14 @@ func IsAssetFile(filename string) bool {
 	ext := strings.ToLower(filepath.Ext(filename))
 	return assetExtensions[ext]
 }
+
+// Filter - Generic Filter function
+func Filter[T any](slice []T, f func(T) bool) []T {
+	filtered := make([]T, 0)
+	for _, elem := range slice {
+		if f(elem) {
+			filtered = append(filtered, elem)
+		}
+	}
+	return filtered
+}
