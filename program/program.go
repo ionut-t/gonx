@@ -1,6 +1,7 @@
 package program
 
 import (
+	"errors"
 	"fmt"
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -140,7 +141,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.view = allMetricsView
 			metrics, err := benchmark.ReadAllMetrics()
 
+			recordsCount := func() string {
+				count := len(metrics)
+
+				if count == 1 {
+					return "1 record"
+				}
+
+				return fmt.Sprintf("%d records", count)
+			}
+
+			m.viewportTitle = fmt.Sprintf("📊 Metrics history (%s)", recordsCount())
+
 			if err != nil {
+				if errors.Is(err, os.ErrNotExist) {
+
+					m.viewport.SetContent(
+						ui.CyanFg.Render("You don't have any metrics recorded yet. Run a benchmark to record them."),
+					)
+					return m, nil
+				}
+
 				m.viewport.SetContent(err.Error())
 				return m, nil
 			}
@@ -187,7 +208,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleBenchmarkBuild()
 
 	case benchmark.DoneMsg:
-		setViewportContent(&m, msg.Benchmarks)
+		renderBenchmarkResults(&m, msg.Benchmarks)
 		m.viewport, cmd = m.viewport.Update(msg)
 		m.suspense.Loading = false
 		m.view = benchmarkResultsView
@@ -324,7 +345,7 @@ func New() {
 	}
 }
 
-func setViewportContent(m *Model, benchmarks []benchmark.Benchmark) {
+func renderBenchmarkResults(m *Model, benchmarks []benchmark.Benchmark) {
 	m.viewportTitle = "📊 Benchmark results"
 	var contents []string
 
@@ -367,7 +388,6 @@ func setViewportContent(m *Model, benchmarks []benchmark.Benchmark) {
 }
 
 func renderBenchmarkMetrics(m *Model, metrics []benchmark.Benchmark) {
-	m.viewportTitle = fmt.Sprintf("📊 Metrics history (%d records)", len(metrics))
 	border := ui.CyanFg.Render(strings.Repeat("─", min(50, m.width-padding)))
 
 	var contents []string
