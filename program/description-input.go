@@ -21,7 +21,6 @@ func newDescription(wWidth int) descriptionInputModel {
 	input.Width = min(wWidth, 60)
 	input.Cursor.SetMode(cursor.CursorBlink)
 	input.Focus()
-	input.Focus()
 
 	return descriptionInputModel{
 		textInput: input,
