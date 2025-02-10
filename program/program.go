@@ -13,6 +13,7 @@ import (
 	"github.com/ionut-t/gonx/ui"
 	"github.com/ionut-t/gonx/workspace"
 	"os"
+	"slices"
 	"strings"
 	"time"
 )
@@ -243,15 +244,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		keyMsg := msg.String()
 		switch keyMsg {
 		case "backspace":
-			if m.view == allMetricsView {
-				m.view = selectActionView
-			}
+			views := []view{allMetricsView, selectAppsView, benchmarkResultsView}
 
-			if m.view == benchmarkResultsView {
-				m.view = selectActionView
-			}
-
-			if m.view == selectAppsView {
+			if slices.Contains(views, m.view) {
 				m.view = selectActionView
 			}
 
