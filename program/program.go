@@ -11,6 +11,7 @@ import (
 	"github.com/ionut-t/gonx/benchmark"
 	"github.com/ionut-t/gonx/suspense"
 	"github.com/ionut-t/gonx/ui"
+	"github.com/ionut-t/gonx/ui/help"
 	"github.com/ionut-t/gonx/workspace"
 	"os"
 	"slices"
@@ -176,14 +177,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case appsSelectedMsg:
 		m.view = descriptionInputView
-
-		m.descriptionInput = newDescription(m.width)
+		m.descriptionInput = newDescription(m.width, m.descriptionInput.textInput.Value())
 
 		return m, tea.Batch(cmds...)
 
 	case descriptionInputMsg:
 		m.view = benchmarkRunView
 		m.benchmarkData.completed = 0
+		m.descriptionInput.textInput.Reset()
 
 		return m, tea.Batch(
 			m.progress.SetPercent(0.0),
@@ -191,6 +192,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return benchmark.StartMsg{StartTime: time.Now(), Apps: m.selectApps.apps, Description: string(msg)}
 			},
 		)
+
+	case descriptionInputCancelMsg:
+		m.view = selectAppsView
+		return m, nil
 
 	case benchmark.StartMsg:
 		m.benchmarkData.completed = 0
@@ -243,7 +248,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		keyMsg := msg.String()
 		switch keyMsg {
-		case "backspace":
+		case "backspace", "esc":
 			views := []view{allMetricsView, selectAppsView, benchmarkResultsView}
 
 			if slices.Contains(views, m.view) {
@@ -309,10 +314,11 @@ func (m Model) View() string {
 			Height(m.height).
 			Padding(1, 1).
 			Render(lipgloss.JoinVertical(
-				lipgloss.Center,
+				lipgloss.Left,
 				m.headerView(),
 				m.viewport.View(),
 				m.footerView(),
+				help.New().View(),
 			))
 	}
 }
