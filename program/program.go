@@ -75,8 +75,9 @@ type Model struct {
 }
 
 type benchmarkData struct {
-	completed  int
-	benchmarks []benchmark.Benchmark
+	completed      int
+	totalProcesses int
+	benchmarks     []benchmark.Benchmark
 }
 
 func (m Model) Init() tea.Cmd {
@@ -205,10 +206,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case workspace.ErrMsg:
 		return m, tea.Quit
 
-	case benchmark.BuildStartMsg:
-		m.suspense.Message = fmt.Sprintf("Building %s application...", ui.CyanFg.Bold(true).Render(msg.App))
+	case benchmark.TotalProcessesMsg:
+		m.benchmarkData.totalProcesses = msg.Total
+
+	case benchmark.NxCacheResetStartMsg:
+		m.suspense.Message = "Resetting the Nx cache and stopping the daemon"
 		m.suspense.Loading = true
 		return m, m.suspense.Spinner.Tick
+
+	case benchmark.NxCacheResetCompleteMsg:
+		m.suspense.Message = "Successfully reset the Nx workspace."
+		return m, m.progress.IncrPercent(m.getProgressIncrement())
+
+	case benchmark.BuildStartMsg:
+		m.suspense.Message = fmt.Sprintf("Building %s application...", ui.CyanFg.Bold(true).Render(msg.App))
+
+	case benchmark.CalculateBundleSizeMsg:
+		m.suspense.Message = fmt.Sprintf("Calculating bundle size for %s application...", ui.CyanFg.Bold(true).Render(msg.App))
+		return m, m.progress.IncrPercent(m.getProgressIncrement())
+
+	case benchmark.WriteStatsMsg:
+		m.suspense.Message = fmt.Sprintf("Writing stats for %s application...", ui.CyanFg.Bold(true).Render(msg.App))
+		return m, m.progress.IncrPercent(m.getProgressIncrement())
 
 	case benchmark.BuildCompleteMsg:
 		m.benchmarkData.completed++
@@ -324,7 +343,7 @@ func (m Model) View() string {
 }
 
 func (m Model) getProgressIncrement() float64 {
-	return 1.0 / float64(len(m.selectApps.apps))
+	return 1.0 / float64(m.benchmarkData.totalProcesses)
 }
 
 func (m Model) handleBenchmarkBuild() (Model, tea.Cmd) {

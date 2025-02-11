@@ -139,11 +139,20 @@ func (b *Benchmark) WriteStats(appName string, startTime time.Time) error {
 }
 
 func New(apps []string, description string) tea.Cmd {
+	// - Global messages: TotalProcessesMsg, NxCacheResetStartMsg, NxCacheResetCompleteMsg (3 total)
+	// - For each app: BuildStartMsg, CalculateBundleSizeMsg, WriteStatsMsg, BuildCompleteMsg/BuildFailedMsg (4 per app)
+	totalProcesses := 3 + len(apps)*4
+
 	// Create channel for build results
-	results := make(chan tea.Msg, len(apps)*2) // Buffer for start and complete/fail messages
+	results := make(chan tea.Msg, totalProcesses) // Buffer for start and complete/fail messages, nx reset
 
 	// Run builds sequentially in a separate goroutine
 	go func() {
+		defer close(results)
+
+		results <- TotalProcessesMsg{Total: totalProcesses - 1} // -1 for this message
+		results <- NxCacheResetStartMsg{}
+
 		// First, run nx reset for the whole workspace
 		cmdReset := exec.Command("nx", "reset")
 		cmdReset.Env = append(os.Environ(), "NX_DAEMON=false")
@@ -157,6 +166,8 @@ func New(apps []string, description string) tea.Cmd {
 			}
 			return
 		}
+
+		results <- NxCacheResetCompleteMsg{}
 
 		// Run builds sequentially
 		for _, app := range apps {
@@ -174,30 +185,34 @@ func New(apps []string, description string) tea.Cmd {
 			cmdBuild.Env = append(os.Environ(), "NX_DAEMON=false")
 			if err := cmdBuild.Run(); err != nil {
 				results <- BuildFailedMsg{
-					App:       app,
-					StartTime: startTime,
-					Error:     fmt.Errorf("build failed: %v", err),
+					App:     app,
+					EndTime: time.Now(),
+					Error:   fmt.Errorf("build failed: %v", err),
 				}
 				continue // Continue with next app even if one fails
 			}
 
+			results <- CalculateBundleSizeMsg{App: app, StartTime: time.Now()}
+
 			stats, err := benchmark.calculateBundleSize(app)
 			if err != nil {
 				results <- BuildFailedMsg{
-					App:       app,
-					StartTime: startTime,
-					Error:     fmt.Errorf("bundle size calculation failed: %v", err),
+					App:     app,
+					EndTime: time.Now(),
+					Error:   fmt.Errorf("bundle size calculation failed: %v", err),
 				}
 				continue
 			}
 			benchmark.Stats = *stats
 
+			results <- WriteStatsMsg{App: app, StartMsg: time.Now()}
+
 			err = benchmark.WriteStats(app, startTime)
 			if err != nil {
 				results <- BuildFailedMsg{
-					App:       app,
-					StartTime: startTime,
-					Error:     fmt.Errorf("failed to write stats: %v", err),
+					App:     app,
+					EndTime: time.Now(),
+					Error:   fmt.Errorf("failed to write stats: %v", err),
 				}
 				continue
 			}
@@ -205,7 +220,7 @@ func New(apps []string, description string) tea.Cmd {
 			results <- BuildCompleteMsg{
 				App:       app,
 				Error:     nil,
-				StartTime: startTime,
+				EndTime:   time.Now(),
 				Benchmark: benchmark,
 			}
 		}
@@ -213,7 +228,7 @@ func New(apps []string, description string) tea.Cmd {
 
 	// Create commands to read all expected messages
 	var cmds []tea.Cmd
-	for i := 0; i < len(apps)*2; i++ { // *2 for start and complete/fail messages
+	for i := 0; i < totalProcesses; i++ {
 		cmds = append(cmds, func() tea.Msg {
 			return <-results
 		})
