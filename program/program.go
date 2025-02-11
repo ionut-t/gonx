@@ -443,7 +443,7 @@ func renderBenchmarkMetrics(m *Model, metrics []benchmark.Benchmark) {
 			lipgloss.Left,
 			ui.CyanFg.Render(fmt.Sprintf(" 🗓️ Recorded on %s at %s", bm.CreatedAt.Format("02/01/2006"), bm.CreatedAt.Format("15:04:05"))),
 			ui.CyanFg.Render(fmt.Sprintf(" 📝 Description: %s", getDescription(bm.Description))),
-			ui.CyanFg.Render(fmt.Sprintf(" 📝 App: %s", bm.AppName)),
+			ui.CyanFg.Render(fmt.Sprintf(" 💻 App: %s", bm.AppName)),
 			benchmark.RenderStats(bm),
 		)
 
