@@ -40,7 +40,6 @@ func getAllApps() (map[string][]string, error) {
 	output, err := cmd.CombinedOutput()
 
 	if err != nil {
-		fmt.Printf("Failed to list apps: %v\nOutput: %s", err, string(output))
 		return nil, err
 	}
 
@@ -125,7 +124,6 @@ func NewWorkspace() (*Workspace, error) {
 
 	apps, err := getAllApps()
 	if err != nil {
-		fmt.Println("Failed to get apps")
 		return nil, err
 	}
 

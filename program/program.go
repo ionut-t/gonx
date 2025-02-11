@@ -204,7 +204,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, benchmark.New(msg.Apps, msg.Description)
 
 	case workspace.ErrMsg:
-		return m, tea.Quit
+		m.suspense.Loading = false
+		m.suspense.Message = lipgloss.JoinVertical(
+			lipgloss.Left,
+			ui.RedFg.Render("No Nx workspace found. Please run this command in the root of your Nx workspace."),
+			"\n",
+			ui.DimFg.Render("Press ctrl+c/ctrl-q to exit."),
+		)
+		return m, nil
 
 	case benchmark.TotalProcessesMsg:
 		m.benchmarkData.totalProcesses = msg.Total
