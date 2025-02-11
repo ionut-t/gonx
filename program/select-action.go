@@ -73,6 +73,7 @@ func newActionsList(width int) selectActionModel {
 	actionList.SetFilteringEnabled(false)
 	actionList.Styles.Title = listTitleStyle
 	actionList.Styles.HelpStyle = helpStyle
+	actionList.InfiniteScrolling = true
 
 	actionList.KeyMap = list.KeyMap{
 		// Browsing.

@@ -98,6 +98,7 @@ func newAppSelectionList(width int, apps []workspace.Application) appSelectionMo
 	appsList.Styles.Title = listTitleStyle
 	appsList.Styles.HelpStyle = helpStyle
 	appsList.SetWidth(width)
+	appsList.InfiniteScrolling = true
 
 	appsList.KeyMap = list.KeyMap{
 		// Browsing.
