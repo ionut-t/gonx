@@ -368,10 +368,13 @@ func (m Model) handleBenchmarkBuild() (Model, tea.Cmd) {
 }
 
 func New() {
+	progressBar := progress.New(progress.WithSolidFill(ui.Cyan))
+	progressBar.PercentageStyle = ui.CyanFg
+
 	program := Model{
 		view:     suspenseView,
 		suspense: suspense.New("Scanning workspace...", true),
-		progress: progress.New(progress.WithSolidFill(ui.Cyan)),
+		progress: progressBar,
 	}
 
 	if _, err := tea.NewProgram(program, tea.WithAltScreen(), tea.WithMouseCellMotion()).Run(); err != nil {
