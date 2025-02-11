@@ -50,4 +50,5 @@ type BuildFailedMsg struct {
 
 type DoneMsg struct {
 	Benchmarks []Benchmark
+	Type       Type
 }

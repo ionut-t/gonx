@@ -12,6 +12,7 @@ import (
 	"github.com/ionut-t/gonx/suspense"
 	"github.com/ionut-t/gonx/ui"
 	"github.com/ionut-t/gonx/ui/help"
+	"github.com/ionut-t/gonx/utils"
 	"github.com/ionut-t/gonx/workspace"
 	"os"
 	"slices"
@@ -52,6 +53,7 @@ type view int
 const (
 	suspenseView view = iota
 	selectActionView
+	runCountInputView
 	selectAppsView
 	descriptionInputView
 	benchmarkRunView
@@ -72,6 +74,7 @@ type Model struct {
 	selectAction     selectActionModel
 	selectApps       appSelectionModel
 	descriptionInput descriptionInputModel
+	runCountInput    runCountInputModel
 }
 
 type benchmarkData struct {
@@ -142,6 +145,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, cmd)
 			return m, tea.Batch(cmds...)
 
+		case runBulkBenchmark:
+			m.view = runCountInputView
+			m.runCountInput = newRunCount()
+
+			return m, tea.Batch(cmds...)
+
 		case viewMetrics:
 			m.view = allMetricsView
 			metrics, err := benchmark.ReadAllMetrics()
@@ -174,6 +183,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			renderBenchmarkMetrics(&m, metrics)
 
 			return m, nil
+
+		case viewBulkMetrics:
+			m.view = allMetricsView
+			metrics, err := benchmark.ReadAllMetrics()
+
+			if err != nil {
+				if errors.Is(err, os.ErrNotExist) {
+
+					m.viewport.SetContent(
+						ui.CyanFg.Render("You don't have any metrics recorded yet. Run a benchmark to record them."),
+					)
+					m.viewportTitle = "📊 Bulk Metrics history"
+					return m, nil
+				}
+
+				m.viewport.SetContent(err.Error())
+				return m, nil
+			}
+
+			renderBulkMetrics(&m, metrics)
+			return m, nil
 		}
 
 	case appsSelectedMsg:
@@ -194,6 +224,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			},
 		)
 
+	case runCountCancelMsg:
+		m.view = selectActionView
+		return m, nil
+
+	case runCountMsg:
+		m.view = selectAppsView
+		m.selectApps = newAppSelectionList(m.width, m.workspace.Applications)
+
+		return m, nil
+
 	case descriptionInputCancelMsg:
 		m.view = selectAppsView
 		return m, nil
@@ -201,7 +241,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case benchmark.StartMsg:
 		m.benchmarkData.completed = 0
 		m.benchmarkData.benchmarks = make([]benchmark.Benchmark, 0)
-		return m, benchmark.New(msg.Apps, msg.Description)
+
+		return m, benchmark.New(msg.Apps, msg.Description, m.getRunCount())
 
 	case workspace.ErrMsg:
 		m.suspense.Loading = false
@@ -217,23 +258,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.benchmarkData.totalProcesses = msg.Total
 
 	case benchmark.NxCacheResetStartMsg:
-		m.suspense.Message = "Resetting the Nx cache and stopping the daemon"
+		m.suspense.Message = m.getProcessPrefix() + "Resetting the Nx cache and stopping the daemon"
 		m.suspense.Loading = true
 		return m, m.suspense.Spinner.Tick
 
 	case benchmark.NxCacheResetCompleteMsg:
-		m.suspense.Message = "Successfully reset the Nx workspace."
+		m.suspense.Message = m.getProcessPrefix() + "Successfully reset the Nx workspace."
 		return m, m.progress.IncrPercent(m.getProgressIncrement())
 
 	case benchmark.BuildStartMsg:
-		m.suspense.Message = fmt.Sprintf("Building %s application...", ui.CyanFg.Bold(true).Render(msg.App))
+		m.suspense.Message = fmt.Sprintf("%sBuilding %s application...", m.getProcessPrefix(), ui.CyanFg.Bold(true).Render(msg.App))
 
 	case benchmark.CalculateBundleSizeMsg:
-		m.suspense.Message = fmt.Sprintf("Calculating bundle size for %s application...", ui.CyanFg.Bold(true).Render(msg.App))
+		m.suspense.Message = fmt.Sprintf("%sCalculating bundle size for %s application...", m.getProcessPrefix(), ui.CyanFg.Bold(true).Render(msg.App))
 		return m, m.progress.IncrPercent(m.getProgressIncrement())
 
 	case benchmark.WriteStatsMsg:
-		m.suspense.Message = fmt.Sprintf("Writing stats for %s application...", ui.CyanFg.Bold(true).Render(msg.App))
+		m.suspense.Message = fmt.Sprintf("%sWriting stats for %s application...", m.getProcessPrefix(), ui.CyanFg.Bold(true).Render(msg.App))
 		return m, m.progress.IncrPercent(m.getProgressIncrement())
 
 	case benchmark.BuildCompleteMsg:
@@ -249,7 +290,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleBenchmarkBuild()
 
 	case benchmark.DoneMsg:
-		renderBenchmarkResults(&m, msg.Benchmarks)
+		if msg.Type == benchmark.Single {
+			renderBenchmarkResults(&m, msg.Benchmarks)
+		} else {
+			renderBulkMetrics(&m, msg.Benchmarks)
+			m.viewportTitle = "📊 Bulk benchmark results"
+		}
+
 		m.viewport, cmd = m.viewport.Update(msg)
 		m.suspense.Loading = false
 		m.view = benchmarkResultsView
@@ -310,6 +357,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 	}
 
+	if m.view == runCountInputView {
+		inputModel, cmd := m.runCountInput.Update(msg)
+		m.runCountInput = inputModel.(runCountInputModel)
+		cmds = append(cmds, cmd)
+	}
+
 	return m, tea.Batch(cmds...)
 }
 
@@ -334,6 +387,9 @@ func (m Model) View() string {
 	case descriptionInputView:
 		return lipgloss.NewStyle().Padding(1, 1).Render(m.descriptionInput.View())
 
+	case runCountInputView:
+		return lipgloss.NewStyle().Padding(1, 1).Render(m.runCountInput.View())
+
 	default:
 		return lipgloss.NewStyle().
 			Width(m.width).
@@ -354,12 +410,16 @@ func (m Model) getProgressIncrement() float64 {
 }
 
 func (m Model) handleBenchmarkBuild() (Model, tea.Cmd) {
-	if m.benchmarkData.completed == len(m.selectApps.apps) {
+	if m.benchmarkData.completed == m.getRunCount()*len(m.selectApps.apps) {
+		bmType := benchmark.GetType(m.getRunCount())
+
+		m.runCountInput.Reset()
+
 		return m, tea.Sequence(
 			m.progress.SetPercent(1.0),
 			// wait for the progress bar to finish animating
 			tea.Tick(time.Millisecond*500, func(t time.Time) tea.Msg {
-				return benchmark.DoneMsg{Benchmarks: m.benchmarkData.benchmarks}
+				return benchmark.DoneMsg{Benchmarks: m.benchmarkData.benchmarks, Type: bmType}
 			}),
 		)
 	}
@@ -471,4 +531,148 @@ func renderBenchmarkMetrics(m *Model, metrics []benchmark.Benchmark) {
 	m.viewport = viewport.New(vWidth, vHeight)
 	m.viewport.YPosition = headerHeight
 	m.viewport.SetContent(output)
+}
+
+func renderBulkMetrics(m *Model, metrics []benchmark.Benchmark) {
+	border := ui.CyanFg.Render(strings.Repeat("─", min(50, m.width-padding)))
+
+	var contents []string
+
+	getDescription := func(description string) string {
+		if description == "" {
+			return "-"
+		}
+
+		return description
+	}
+
+	bulkMetrics := utils.Filter(metrics, func(bm benchmark.Benchmark) bool {
+		return bm.Type == benchmark.Bulk
+	})
+
+	groupedMetrics := make(map[string][]benchmark.Benchmark)
+	for _, bm := range bulkMetrics {
+		groupedMetrics[bm.RunId] = append(groupedMetrics[bm.RunId], bm)
+	}
+
+	type bmGroup struct {
+		appName     string
+		createdAt   time.Time
+		description string
+		min         float64
+		max         float64
+		average     float64
+		count       int
+	}
+
+	// First group by app name within each runId group
+	appGroups := make(map[string]map[string][]benchmark.Benchmark)
+	for runId, metrics := range groupedMetrics {
+		appGroups[runId] = make(map[string][]benchmark.Benchmark)
+		for _, bm := range metrics {
+			appGroups[runId][bm.AppName] = append(appGroups[runId][bm.AppName], bm)
+		}
+	}
+
+	benchmarks := make([]bmGroup, 0)
+
+	// Calculate statistics for each app in each run group
+	for _, apps := range appGroups {
+		for appName, bms := range apps {
+			if len(bms) == 0 {
+				continue
+			}
+
+			// Calculate min, max, average
+			var sum float64
+			minDuration := bms[0].Duration
+			maxDuration := bms[0].Duration
+
+			for _, bm := range bms {
+				sum += bm.Duration
+				if bm.Duration < minDuration {
+					minDuration = bm.Duration
+				}
+				if bm.Duration > maxDuration {
+					maxDuration = bm.Duration
+				}
+			}
+
+			avg := sum / float64(len(bms))
+
+			benchmarks = append(benchmarks, bmGroup{
+				appName:     appName,
+				createdAt:   bms[0].CreatedAt,
+				description: bms[0].Description,
+				min:         minDuration,
+				max:         maxDuration,
+				average:     avg,
+				count:       bms[0].RunCount,
+			})
+		}
+	}
+
+	recordsCount := func() string {
+		count := len(benchmarks)
+
+		if count == 1 {
+			return "1 record"
+		}
+
+		return fmt.Sprintf("%d records", count)
+	}
+
+	m.viewportTitle = fmt.Sprintf("📊 Bulk Metrics history (%s)", recordsCount())
+
+	for i, bm := range benchmarks {
+		content := lipgloss.JoinVertical(
+			lipgloss.Left,
+			ui.CyanFg.Render(fmt.Sprintf(" 🗓️ Recorded on %s at %s", bm.createdAt.Format("02/01/2006"), bm.createdAt.Format("15:04:05"))),
+			ui.CyanFg.Render(fmt.Sprintf(" 📝 Description: %s", getDescription(bm.description))),
+			ui.CyanFg.Render(fmt.Sprintf(" 💻 App: %s", bm.appName)),
+			ui.CyanFg.Render(fmt.Sprintf(" 🔄 Run count: %d", bm.count)),
+			ui.GreenFg.Render(fmt.Sprintf(" 🕒 Min: %.2fs", bm.min)),
+			ui.GreenFg.Render(fmt.Sprintf(" 🕒 Max: %.2fs", bm.max)),
+			ui.GreenFg.Render(fmt.Sprintf(" 🕒 Average: %.2fs", bm.average)),
+		)
+
+		if i < len(metrics)-1 {
+			content += "\n\n" + border + "\n"
+		}
+
+		contents = append(contents, content)
+	}
+
+	output := lipgloss.NewStyle().
+		Padding(0, 4).
+		Render(lipgloss.JoinVertical(
+			lipgloss.Left,
+			contents...,
+		))
+
+	headerHeight := lipgloss.Height(m.headerView())
+	footerHeight := lipgloss.Height(m.footerView())
+	verticalMarginHeight := headerHeight + footerHeight
+
+	vWidth := m.width - padding
+	vHeight := m.height - verticalMarginHeight - padding
+
+	m.viewport = viewport.New(vWidth, vHeight)
+	m.viewport.YPosition = headerHeight
+	m.viewport.SetContent(output)
+}
+
+func (m Model) getProcessPrefix() string {
+	count := m.runCountInput.Value()
+	bmType := benchmark.GetType(count)
+
+	if bmType == benchmark.Single {
+		return ""
+	}
+
+	return "Bulk benchmark: "
+}
+
+func (m Model) getRunCount() int {
+	return max(m.runCountInput.Value(), 1)
 }

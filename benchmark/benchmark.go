@@ -20,6 +20,13 @@ const folderName = ".gonx"
 const benchmarkFile = "benchmarks.json"
 const benchmarkFilePath = folderName + "/" + benchmarkFile
 
+type Type string
+
+const (
+	Single Type = "single"
+	Bulk   Type = "bulk"
+)
+
 type Benchmark struct {
 	AppName     string     `json:"appName"`
 	Version     string     `json:"version"`
@@ -27,6 +34,9 @@ type Benchmark struct {
 	Duration    float64    `json:"duration"`
 	Description string     `json:"description"`
 	Stats       buildStats `json:"stats"`
+	Type        Type       `json:"type"`
+	RunId       string     `json:"runId"`
+	RunCount    int        `json:"runCount"`
 }
 
 func (b *Benchmark) Build(app string) error {
@@ -138,10 +148,15 @@ func (b *Benchmark) WriteStats(appName string, startTime time.Time) error {
 	return os.WriteFile(benchmarkFilePath, content, 0644)
 }
 
-func New(apps []string, description string) tea.Cmd {
-	// - Global messages: TotalProcessesMsg, NxCacheResetStartMsg, NxCacheResetCompleteMsg (3 total)
-	// - For each app: BuildStartMsg, CalculateBundleSizeMsg, WriteStatsMsg, BuildCompleteMsg/BuildFailedMsg (4 per app)
-	totalProcesses := 3 + len(apps)*4
+func New(apps []string, description string, count int) tea.Cmd {
+	runId := uuid.New().String()
+
+	// Calculate total number of processes:
+	// - Initial message: TotalProcessesMsg (1 total)
+	// - For each count run:
+	//   - Reset messages: NxCacheResetStartMsg, NxCacheResetCompleteMsg (2 per count)
+	//   - For each app: BuildStartMsg, CalculateBundleSizeMsg, WriteStatsMsg, BuildCompleteMsg/BuildFailedMsg (4 per app)
+	totalProcesses := 1 + count*(2+len(apps)*4)
 
 	// Create channel for build results
 	results := make(chan tea.Msg, totalProcesses) // Buffer for start and complete/fail messages, nx reset
@@ -151,77 +166,84 @@ func New(apps []string, description string) tea.Cmd {
 		defer close(results)
 
 		results <- TotalProcessesMsg{Total: totalProcesses - 1} // -1 for this message
-		results <- NxCacheResetStartMsg{}
 
-		// First, run nx reset for the whole workspace
-		cmdReset := exec.Command("nx", "reset")
-		cmdReset.Env = append(os.Environ(), "NX_DAEMON=false")
-		if err := cmdReset.Run(); err != nil {
-			// If reset fails, send failed messages for all apps
+		for i := 0; i < count; i++ {
+			results <- NxCacheResetStartMsg{}
+
+			// First, run nx reset for the whole workspace
+			cmdReset := exec.Command("nx", "reset")
+			cmdReset.Env = append(os.Environ(), "NX_DAEMON=false")
+			if err := cmdReset.Run(); err != nil {
+				// If reset fails, send failed messages for all apps
+				for _, app := range apps {
+					results <- BuildFailedMsg{
+						App:   app,
+						Error: fmt.Errorf("workspace reset failed: %v", err),
+					}
+				}
+				return
+			}
+
+			results <- NxCacheResetCompleteMsg{}
+
+			// Run builds sequentially
 			for _, app := range apps {
-				results <- BuildFailedMsg{
-					App:   app,
-					Error: fmt.Errorf("workspace reset failed: %v", err),
+				startTime := time.Now()
+				benchmark := Benchmark{Description: description}
+				benchmark.Type = Bulk
+				benchmark.RunId = runId
+				benchmark.Type = GetType(count)
+				benchmark.RunCount = count
+
+				// Send start message
+				results <- BuildStartMsg{
+					App:       app,
+					StartTime: startTime,
 				}
-			}
-			return
-		}
 
-		results <- NxCacheResetCompleteMsg{}
-
-		// Run builds sequentially
-		for _, app := range apps {
-			startTime := time.Now()
-			benchmark := Benchmark{Description: description}
-
-			// Send start message
-			results <- BuildStartMsg{
-				App:       app,
-				StartTime: startTime,
-			}
-
-			// Run build
-			cmdBuild := exec.Command("nx", "build", app)
-			cmdBuild.Env = append(os.Environ(), "NX_DAEMON=false")
-			if err := cmdBuild.Run(); err != nil {
-				results <- BuildFailedMsg{
-					App:     app,
-					EndTime: time.Now(),
-					Error:   fmt.Errorf("build failed: %v", err),
+				// Run build
+				cmdBuild := exec.Command("nx", "build", app)
+				cmdBuild.Env = append(os.Environ(), "NX_DAEMON=false")
+				if err := cmdBuild.Run(); err != nil {
+					results <- BuildFailedMsg{
+						App:     app,
+						EndTime: time.Now(),
+						Error:   fmt.Errorf("build failed: %v", err),
+					}
+					continue // Continue with next app even if one fails
 				}
-				continue // Continue with next app even if one fails
-			}
 
-			results <- CalculateBundleSizeMsg{App: app, StartTime: time.Now()}
+				results <- CalculateBundleSizeMsg{App: app, StartTime: time.Now()}
 
-			stats, err := benchmark.calculateBundleSize(app)
-			if err != nil {
-				results <- BuildFailedMsg{
-					App:     app,
-					EndTime: time.Now(),
-					Error:   fmt.Errorf("bundle size calculation failed: %v", err),
+				stats, err := benchmark.calculateBundleSize(app)
+				if err != nil {
+					results <- BuildFailedMsg{
+						App:     app,
+						EndTime: time.Now(),
+						Error:   fmt.Errorf("bundle size calculation failed: %v", err),
+					}
+					continue
 				}
-				continue
-			}
-			benchmark.Stats = *stats
+				benchmark.Stats = *stats
 
-			results <- WriteStatsMsg{App: app, StartMsg: time.Now()}
+				results <- WriteStatsMsg{App: app, StartMsg: time.Now()}
 
-			err = benchmark.WriteStats(app, startTime)
-			if err != nil {
-				results <- BuildFailedMsg{
-					App:     app,
-					EndTime: time.Now(),
-					Error:   fmt.Errorf("failed to write stats: %v", err),
+				err = benchmark.WriteStats(app, startTime)
+				if err != nil {
+					results <- BuildFailedMsg{
+						App:     app,
+						EndTime: time.Now(),
+						Error:   fmt.Errorf("failed to write stats: %v", err),
+					}
+					continue
 				}
-				continue
-			}
 
-			results <- BuildCompleteMsg{
-				App:       app,
-				Error:     nil,
-				EndTime:   time.Now(),
-				Benchmark: benchmark,
+				results <- BuildCompleteMsg{
+					App:       app,
+					Error:     nil,
+					EndTime:   time.Now(),
+					Benchmark: benchmark,
+				}
 			}
 		}
 	}()
@@ -267,4 +289,12 @@ func RenderStats(bm Benchmark) string {
 		ui.CyanFg.Render(fmt.Sprintf(" 📂 Assets total: %s", utils.FormatFileSize(bm.Stats.Assets))),
 		ui.BlueFg.Render(fmt.Sprintf(" 📊 Overall total: %s", utils.FormatFileSize(bm.Stats.OverallTotal))),
 	)
+}
+
+func GetType(count int) Type {
+	if count <= 1 {
+		return Single
+	}
+
+	return Bulk
 }

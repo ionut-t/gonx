@@ -13,7 +13,9 @@ type actionType int
 
 const (
 	runBenchmark actionType = iota
+	runBulkBenchmark
 	viewMetrics
+	viewBulkMetrics
 )
 
 type actionSelectedMsg struct {
@@ -62,7 +64,9 @@ func (m selectActionModel) View() string {
 func newActionsList(width int) selectActionModel {
 	items := []list.Item{
 		actionItem("Run benchmark"),
-		actionItem("View benchmark metrics"),
+		actionItem("Run bulk builds"),
+		actionItem("View metrics"),
+		actionItem("View bulk build metrics"),
 	}
 
 	const defaultWidth = 20
