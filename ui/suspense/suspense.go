@@ -2,7 +2,7 @@ package suspense
 
 import (
 	"fmt"
-	"github.com/ionut-t/gonx/ui"
+	"github.com/ionut-t/gonx/ui/styles"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -44,7 +44,7 @@ func New(message string, loading bool) Model {
 
 	suspense.Spinner = spinner.New()
 	suspense.Spinner.Spinner = spinner.Points
-	suspense.Spinner.Style = ui.CyanFg
+	suspense.Spinner.Style = styles.Primary
 
 	return suspense
 }

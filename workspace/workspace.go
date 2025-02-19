@@ -3,7 +3,9 @@ package workspace
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/ionut-t/gonx/utils"
@@ -21,8 +23,8 @@ func (w *Workspace) String() string {
 }
 
 type Application struct {
-	Name  string `json:"name"`
-	Suite string `json:"suite"`
+	Name       string `json:"name"`
+	OutputPath string `json:"outputPath"`
 }
 
 type Library struct {
@@ -35,26 +37,26 @@ type E2EApp struct {
 	Suite string `json:"suite"`
 }
 
-func getAllApps() (map[string][]string, error) {
+func getAllApps() ([]Application, []Library, []E2EApp, error) {
 	cmd := exec.Command("nx", "show", "projects")
 	output, err := cmd.CombinedOutput()
 
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 
 	outputStr := string(output)
 	rawApps := strings.Split(strings.TrimSpace(outputStr), "\n")
 
-	apps := filterApps(rawApps)
+	apps, libs, e2eApps := parseApps(rawApps)
 
-	return apps, nil
+	return apps, libs, e2eApps, nil
 }
 
-func filterApps(allApps []string) map[string][]string {
-	var apps []string
-	var libs []string
-	var e2eApps []string
+func parseApps(allApps []string) ([]Application, []Library, []E2EApp) {
+	var apps []Application
+	var libs []Library
+	var e2eApps []E2EApp
 
 	for _, app := range allApps {
 		cmd := exec.Command("nx", "show", "project", app, "--json")
@@ -64,7 +66,7 @@ func filterApps(allApps []string) map[string][]string {
 			fmt.Printf("Failed to show project %s: %v\nOutput: %s", app, err, string(output))
 			continue
 		} else {
-			var projectConfig map[string]interface{}
+			var projectConfig ProjectConfig
 
 			parseError := json.Unmarshal(output, &projectConfig)
 
@@ -72,36 +74,31 @@ func filterApps(allApps []string) map[string][]string {
 				fmt.Printf("Failed to parse project config for %s %s", app, parseError)
 				continue
 			} else {
-				if projectType, ok := projectConfig["projectType"].(string); ok {
-					if strings.HasSuffix(app, ".e2e") {
-						continue
-					}
+				projectType := projectConfig.ProjectType
+				if strings.HasSuffix(app, ".e2e") {
+					continue
+				}
 
-					if strings.Contains(app, "-e2e") {
-						e2eApps = append(e2eApps, app)
-						continue
-					}
+				if strings.Contains(app, "-e2e") {
+					e2eApps = append(e2eApps, E2EApp{Name: app})
+					continue
+				}
 
-					if projectType == "application" {
-						apps = append(apps, app)
-					}
+				if projectType == "application" {
+					apps = append(apps, Application{
+						Name:       app,
+						OutputPath: projectConfig.Targets.Build.Options.OutputPath,
+					})
+				}
 
-					if projectType == "library" {
-						libs = append(libs, app)
-					}
-				} else {
-					fmt.Printf("Failed to assert projectType for %s", app)
+				if projectType == "library" {
+					libs = append(libs, Library{Name: app})
 				}
 			}
 		}
-
 	}
 
-	return map[string][]string{
-		"applications": apps,
-		"libraries":    libs,
-		"e2eApps":      e2eApps,
-	}
+	return apps, libs, e2eApps
 }
 
 type DoneMsg struct {
@@ -113,31 +110,24 @@ type ErrMsg struct {
 }
 
 func NewWorkspace() (*Workspace, error) {
-	workspace := Workspace{
-		Name: "My Workspace",
-	}
+	cwd, err := os.Getwd()
 
-	//workspaceModel := Model{
-	//	suspense:  suspense.CreateSuspenseModel(true, "Scanning workspace"),
-	//	Workspace: workspace,
-	//}
-
-	apps, err := getAllApps()
 	if err != nil {
 		return nil, err
 	}
 
-	for _, app := range apps["applications"] {
-		workspace.Applications = append(workspace.Applications, Application{Name: app})
+	workspace := Workspace{
+		Name: filepath.Base(cwd),
 	}
 
-	for _, lib := range apps["libraries"] {
-		workspace.Libraries = append(workspace.Libraries, Library{Name: lib})
+	apps, libs, e2eApps, err := getAllApps()
+	if err != nil {
+		return nil, err
 	}
 
-	for _, e2eApp := range apps["e2eApps"] {
-		workspace.E2EApps = append(workspace.E2EApps, E2EApp{Name: e2eApp})
-	}
+	workspace.Applications = apps
+	workspace.Libraries = libs
+	workspace.E2EApps = e2eApps
 
 	return &workspace, nil
 }

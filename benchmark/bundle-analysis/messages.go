@@ -1,22 +1,20 @@
-package benchmark
+package bundle_analysis
 
-/*
+import (
+	"github.com/ionut-t/gonx/workspace"
+	"time"
+)
+
 type StartMsg struct {
-	Apps        []string
+	Apps        []workspace.Application
 	Description string
 	StartTime   time.Time
 }
 
-type TotalProcessesMsg struct {
-	Total int
-}
+type TotalProcessesMsg int
 
 type NxCacheResetStartMsg struct {
 	StartTime time.Time
-}
-
-type NxCacheResetCompleteMsg struct {
-	EndTime time.Time
 }
 
 type BuildStartMsg struct {
@@ -38,7 +36,7 @@ type BuildCompleteMsg struct {
 	App       string
 	Error     error
 	EndTime   time.Time
-	Benchmark Benchmark
+	Benchmark BundleAnalysisBenchmark
 }
 
 type BuildFailedMsg struct {
@@ -48,7 +46,5 @@ type BuildFailedMsg struct {
 }
 
 type DoneMsg struct {
-	Benchmarks []Benchmark
-	Type       Type
+	Error error
 }
-*/

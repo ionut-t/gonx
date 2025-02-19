@@ -76,6 +76,22 @@ func FormatFileSize(bytes int64) string {
 	return fmt.Sprintf("%.2fKB", kb)
 }
 
+func FormatFileSizeInMB(bytes int64) string {
+	const unit = 1024
+
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+
+	kb := float64(bytes) / unit
+
+	mb := kb / 1024
+	return fmt.Sprintf("%.2fMB", mb)
+
+}
+
 // Common asset file extensions
 var assetExtensions = map[string]bool{
 	".jpg":   true,
@@ -138,4 +154,16 @@ func Filter[T any](slice []T, f func(T) bool) []T {
 		}
 	}
 	return filtered
+}
+
+func Errorf(format string, a ...any) error {
+	return fmt.Errorf(format, a)
+}
+
+// Ternary is a generic function that simulates the ternary operator.
+func Ternary[T any](condition bool, trueValue T, falseValue T) T {
+	if condition {
+		return trueValue
+	}
+	return falseValue
 }

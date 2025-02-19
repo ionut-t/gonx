@@ -1,300 +1,211 @@
 package benchmark
 
 import (
-	"encoding/json"
-	"fmt"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/ionut-t/gonx/ui"
-	"log"
-	"os"
-	"os/exec"
-	"strings"
-	"time"
-
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/google/uuid"
-	"github.com/ionut-t/gonx/utils"
+	"github.com/charmbracelet/lipgloss"
+	bulkBuild "github.com/ionut-t/gonx/benchmark/bulk-build"
+	bulkBuildHistory "github.com/ionut-t/gonx/benchmark/bulk-build-history"
+	bundleAnalysis "github.com/ionut-t/gonx/benchmark/bundle-analysis"
+	bundleAnalysisHistory "github.com/ionut-t/gonx/benchmark/bundle-analysis-history"
+	"github.com/ionut-t/gonx/internal/messages"
+	"github.com/ionut-t/gonx/workspace"
+	"slices"
 )
 
-const folderName = ".gonx"
-const benchmarkFile = "benchmarks.json"
-const benchmarkFilePath = folderName + "/" + benchmarkFile
+/*
+Note for the future:
 
-type Type string
+type BenchmarkType string
 
 const (
-	Single Type = "single"
-	Bulk   Type = "bulk"
+	BundleAnalysis BenchmarkType = "bundle_analysis" // For analyzing bundle sizes
+
+	BulkBuild       BenchmarkType = "bulk_build"       // Multiple builds of same app
+	BulkLint        BenchmarkType = "bulk_lint"        // Multiple lint runs
+	BulkUnitTest    BenchmarkType = "bulk_unit_test"   // Multiple unit test runs
+	BulkIntegration BenchmarkType = "bulk_integration" // Multiple integration test runs
+	BulkE2E         BenchmarkType = "bulk_e2e"         // Multiple e2e test runs
+)
+*/
+
+type view int
+
+const (
+	selectTasksView view = iota
+	selectAppsView
+	bundleAnalysisView
+	bulkBuildView
+	bundleAnalysisHistoryView
+	bulkBuildHistoryView
 )
 
-type Benchmark struct {
-	AppName     string     `json:"appName"`
-	Version     string     `json:"version"`
-	CreatedAt   time.Time  `json:"createdAt"`
-	Duration    float64    `json:"duration"`
-	Description string     `json:"description"`
-	Stats       buildStats `json:"stats"`
-	Type        Type       `json:"type"`
-	RunId       string     `json:"runId"`
-	RunCount    int        `json:"runCount"`
+var historyViews = []view{
+	bundleAnalysisHistoryView,
+	bulkBuildHistoryView,
 }
 
-func (b *Benchmark) Build(app string) error {
-	cmdReset := exec.Command("nx", "reset")
-	if output, err := cmdReset.CombinedOutput(); err != nil {
-		log.Printf("Reset failed: %v\nOutput: %s", err, string(output))
-		return err
-	}
+var (
+	viewStyle = lipgloss.NewStyle().Padding(0, 1).Render
+)
 
-	cmdBuild := exec.Command("nx", "build", app)
-	if output, err := cmdBuild.CombinedOutput(); err != nil {
-		log.Printf("Build failed: %v\nOutput: %s", err, string(output))
-		return err
-	}
+type Model struct {
+	view view
 
+	workspace workspace.Workspace
+
+	taskList tasksModel
+	appList  appsModel
+
+	bundleAnalysis            bundleAnalysis.Model
+	bundleAnalysisHistoryView bundleAnalysisHistory.Model
+
+	bulkBuild            bulkBuild.Model
+	bulkBuildHistoryView bulkBuildHistory.Model
+
+	width  int
+	height int
+}
+
+type Options struct {
+	Workspace workspace.Workspace
+	Width     int
+	Height    int
+}
+
+func New(options Options) Model {
+	return Model{
+		width:     options.Width,
+		height:    options.Height,
+		workspace: options.Workspace,
+		taskList:  newTasksList(options.Width),
+	}
+}
+
+func (m Model) Init() tea.Cmd {
 	return nil
 }
 
-func (b *Benchmark) calculateBundleSize(appName string) (*buildStats, error) {
-	stats := buildStats{}
+func (m Model) View() string {
+	switch m.view {
+	case selectTasksView:
+		return viewStyle(m.taskList.View())
 
-	cwd, err := os.Getwd()
+	case selectAppsView:
+		return m.appList.View()
 
-	if err != nil {
-		log.Fatalf("Error getting current working directory: %v", err)
-		return nil, err
+	case bundleAnalysisView:
+		return viewStyle(m.bundleAnalysis.View())
+
+	case bundleAnalysisHistoryView:
+		return m.bundleAnalysisHistoryView.View()
+
+	case bulkBuildView:
+		return viewStyle(m.bulkBuild.View())
+
+	case bulkBuildHistoryView:
+		return m.bulkBuildHistoryView.View()
 	}
 
-	path := cwd + "/dist/apps/" + appName + "/browser"
-
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		log.Fatalf("Build output directory not found: %s. You're might be using an unsuported version of NX", path)
-		return nil, err
-	}
-
-	if assetsSize, err := utils.FindAndCalculateAssetsSize(path); !os.IsNotExist(err) {
-		stats.Assets = assetsSize
-	}
-
-	files, _ := os.ReadDir(path)
-
-	for _, file := range files {
-		if !strings.HasSuffix(file.Name(), ".js") &&
-			!strings.HasSuffix(file.Name(), ".css") {
-			continue
-		}
-
-		stat, _ := file.Info()
-
-		if !stat.IsDir() {
-			size := stat.Size()
-
-			if strings.HasPrefix(file.Name(), "main-") {
-				stats.Initial.Main += size
-			} else if strings.HasPrefix(file.Name(), "scripts-") {
-				stats.Initial.Runtime += size
-			} else if strings.HasPrefix(file.Name(), "polyfills-") {
-				stats.Initial.Polyfills += size
-			} else if strings.HasPrefix(file.Name(), "chunk-") || strings.Contains(file.Name(), "chunk") {
-				stats.Lazy += size
-			} else if strings.HasSuffix(file.Name(), ".css") {
-				stats.Styles += size
-			}
-		}
-	}
-
-	stats.Initial.Total = stats.Initial.Main + stats.Initial.Runtime + stats.Initial.Polyfills
-	stats.Total = stats.Initial.Total + stats.Lazy
-	stats.OverallTotal = stats.Total + stats.Assets + stats.Styles
-
-	return &stats, nil
+	return ""
 }
 
-func (b *Benchmark) WriteStats(appName string, startTime time.Time) error {
-	b.AppName = appName
-	b.CreatedAt = time.Now()
-	b.Version = uuid.New().String()
-	b.Duration = time.Since(startTime).Seconds()
-
-	benchmark, err := utils.ToJsonString(b)
-
-	if err != nil {
-		return err
-	}
-
-	var previousBenchmarks []json.RawMessage
-	currentValue, err := os.ReadFile(benchmarkFilePath)
-
-	if err == nil && len(currentValue) > 0 {
-		if err := json.Unmarshal(currentValue, &previousBenchmarks); err != nil {
-			return err
-		}
-	}
-
-	previousBenchmarks = append([]json.RawMessage{json.RawMessage(benchmark)}, previousBenchmarks...)
-
-	content, err := json.MarshalIndent(previousBenchmarks, "", "  ")
-
-	if err != nil {
-		return err
-	}
-
-	err = os.MkdirAll(folderName, 0755)
-
-	if err != nil {
-		return err
-	}
-
-	return os.WriteFile(benchmarkFilePath, content, 0644)
-}
-
-func New(apps []string, description string, count int) tea.Cmd {
-	runId := uuid.New().String()
-
-	// Calculate total number of processes:
-	// - Initial message: TotalProcessesMsg (1 total)
-	// - For each count run:
-	//   - Reset messages: NxCacheResetStartMsg, NxCacheResetCompleteMsg (2 per count)
-	//   - For each app: BuildStartMsg, CalculateBundleSizeMsg, WriteStatsMsg, BuildCompleteMsg/BuildFailedMsg (4 per app)
-	totalProcesses := 1 + count*(2+len(apps)*4)
-
-	// Create channel for build results
-	results := make(chan tea.Msg, totalProcesses) // Buffer for start and complete/fail messages, nx reset
-
-	// Run builds sequentially in a separate goroutine
-	go func() {
-		defer close(results)
-
-		results <- TotalProcessesMsg{Total: totalProcesses - 1} // -1 for this message
-
-		for i := 0; i < count; i++ {
-			results <- NxCacheResetStartMsg{}
-
-			// First, run nx reset for the whole workspace
-			cmdReset := exec.Command("nx", "reset")
-			cmdReset.Env = append(os.Environ(), "NX_DAEMON=false")
-			if err := cmdReset.Run(); err != nil {
-				// If reset fails, send failed messages for all apps
-				for _, app := range apps {
-					results <- BuildFailedMsg{
-						App:   app,
-						Error: fmt.Errorf("workspace reset failed: %v", err),
-					}
-				}
-				return
-			}
-
-			results <- NxCacheResetCompleteMsg{}
-
-			// Run builds sequentially
-			for _, app := range apps {
-				startTime := time.Now()
-				benchmark := Benchmark{Description: description}
-				benchmark.Type = Bulk
-				benchmark.RunId = runId
-				benchmark.Type = GetType(count)
-				benchmark.RunCount = count
-
-				// Send start message
-				results <- BuildStartMsg{
-					App:       app,
-					StartTime: startTime,
-				}
-
-				// Run build
-				cmdBuild := exec.Command("nx", "build", app)
-				cmdBuild.Env = append(os.Environ(), "NX_DAEMON=false")
-				if err := cmdBuild.Run(); err != nil {
-					results <- BuildFailedMsg{
-						App:     app,
-						EndTime: time.Now(),
-						Error:   fmt.Errorf("build failed: %v", err),
-					}
-					continue // Continue with next app even if one fails
-				}
-
-				results <- CalculateBundleSizeMsg{App: app, StartTime: time.Now()}
-
-				stats, err := benchmark.calculateBundleSize(app)
-				if err != nil {
-					results <- BuildFailedMsg{
-						App:     app,
-						EndTime: time.Now(),
-						Error:   fmt.Errorf("bundle size calculation failed: %v", err),
-					}
-					continue
-				}
-				benchmark.Stats = *stats
-
-				results <- WriteStatsMsg{App: app, StartMsg: time.Now()}
-
-				err = benchmark.WriteStats(app, startTime)
-				if err != nil {
-					results <- BuildFailedMsg{
-						App:     app,
-						EndTime: time.Now(),
-						Error:   fmt.Errorf("failed to write stats: %v", err),
-					}
-					continue
-				}
-
-				results <- BuildCompleteMsg{
-					App:       app,
-					Error:     nil,
-					EndTime:   time.Now(),
-					Benchmark: benchmark,
-				}
-			}
-		}
-	}()
-
-	// Create commands to read all expected messages
-	var cmds []tea.Cmd
-	for i := 0; i < totalProcesses; i++ {
-		cmds = append(cmds, func() tea.Msg {
-			return <-results
-		})
-	}
-
-	return tea.Batch(cmds...)
-}
-
-func ReadAllMetrics() ([]Benchmark, error) {
-	var metrics []Benchmark
-
-	bytes, err := os.ReadFile(benchmarkFilePath)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if err := json.Unmarshal(bytes, &metrics); err != nil {
-		return nil, err
-	}
-
-	return metrics, nil
-}
-
-func RenderStats(bm Benchmark) string {
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		ui.GreenFg.Render(fmt.Sprintf(" 🕒 Build time: %.2fs", bm.Duration)),
-		ui.GreenFg.Render(fmt.Sprintf(" 🎯 Main bundle: %s", utils.FormatFileSize(bm.Stats.Initial.Main))),
-		ui.GreenFg.Render(fmt.Sprintf(" ⚙️ Runtime bundle: %s", utils.FormatFileSize(bm.Stats.Initial.Runtime))),
-		ui.GreenFg.Render(fmt.Sprintf(" 🔧 Polyfills bundle: %s", utils.FormatFileSize(bm.Stats.Initial.Polyfills))),
-		ui.YellowFg.Render(fmt.Sprintf(" 📦 Initial total: %s", utils.FormatFileSize(bm.Stats.Initial.Total))),
-		ui.MagentaFg.Render(fmt.Sprintf(" 📦 Lazy chunks total: %s", utils.FormatFileSize(bm.Stats.Lazy))),
-		ui.BlueFg.Render(fmt.Sprintf(" 📦 Bundle total: %s", utils.FormatFileSize(bm.Stats.Total))),
-		ui.BlueFg.Render(fmt.Sprintf(" 🎨 Styles total: %s", utils.FormatFileSize(bm.Stats.Styles))),
-		ui.CyanFg.Render(fmt.Sprintf(" 📂 Assets total: %s", utils.FormatFileSize(bm.Stats.Assets))),
-		ui.BlueFg.Render(fmt.Sprintf(" 📊 Overall total: %s", utils.FormatFileSize(bm.Stats.OverallTotal))),
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var (
+		cmds []tea.Cmd
 	)
-}
 
-func GetType(count int) Type {
-	if count <= 1 {
-		return Single
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+
+	case tea.KeyMsg:
+		keyMsg := msg.String()
+		switch keyMsg {
+
+		case "ctrl+q", "ctrl+c":
+			return m, tea.Quit
+
+		case "z":
+			if (m.view == selectTasksView || m.isHistoryView()) && !m.bundleAnalysisHistoryView.Searching() {
+				m.view = bundleAnalysisHistoryView
+				m.bundleAnalysisHistoryView = bundleAnalysisHistory.New(m.width, m.height)
+			}
+
+		case "x":
+			if m.view == selectTasksView || m.isHistoryView() && !m.bundleAnalysisHistoryView.Searching() {
+				m.view = bulkBuildHistoryView
+				m.bulkBuildHistoryView = bulkBuildHistory.New(m.width, m.height)
+			}
+		}
+
+	case taskMsg:
+		m.view = selectAppsView
+		m.appList = newAppSelectionList(m.width, m.workspace.Applications)
+
+	case appsSelectedMsg:
+		switch m.taskList.selected {
+		case bundleAnalysisTask:
+			m.view = bundleAnalysisView
+			m.bundleAnalysis = bundleAnalysis.New(msg, m.width, m.height)
+
+		case bulkBuildTask:
+			m.view = bulkBuildView
+			var apps = make([]string, 0, len(msg))
+			for _, app := range msg {
+				apps = append(apps, app.Name)
+			}
+			m.bulkBuild = bulkBuild.New(apps, m.width, m.height)
+		}
+
+	case messages.NavigateToViewMsg:
+		if m.view != selectTasksView {
+			m.view = view(msg)
+			return m, nil
+		}
 	}
 
-	return Bulk
+	if m.view == selectTasksView {
+		bModel, cmd := m.bundleAnalysis.Update(msg)
+		m.bundleAnalysis = bModel.(bundleAnalysis.Model)
+		cmds = append(cmds, cmd)
+	}
+
+	switch m.view {
+	case selectTasksView:
+		tModel, cmd := m.taskList.Update(msg)
+		m.taskList = tModel.(tasksModel)
+		cmds = append(cmds, cmd)
+
+	case selectAppsView:
+		aModel, cmd := m.appList.Update(msg)
+		m.appList = aModel.(appsModel)
+		cmds = append(cmds, cmd)
+
+	case bundleAnalysisView:
+		bModel, cmd := m.bundleAnalysis.Update(msg)
+		m.bundleAnalysis = bModel.(bundleAnalysis.Model)
+		cmds = append(cmds, cmd)
+
+	case bulkBuildView:
+		bModel, cmd := m.bulkBuild.Update(msg)
+		m.bulkBuild = bModel.(bulkBuild.Model)
+		cmds = append(cmds, cmd)
+
+	case bundleAnalysisHistoryView:
+		bModel, cmd := m.bundleAnalysisHistoryView.Update(msg)
+		m.bundleAnalysisHistoryView = bModel.(bundleAnalysisHistory.Model)
+		cmds = append(cmds, cmd)
+
+	case bulkBuildHistoryView:
+		bModel, cmd := m.bulkBuildHistoryView.Update(msg)
+		m.bulkBuildHistoryView = bModel.(bulkBuildHistory.Model)
+		cmds = append(cmds, cmd)
+	}
+
+	return m, tea.Batch(cmds...)
+}
+
+func (m Model) isHistoryView() bool {
+	return slices.Contains(historyViews, m.view)
 }

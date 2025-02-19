@@ -1,0 +1,48 @@
+package benchmark_data
+
+import (
+	"github.com/google/uuid"
+	"github.com/ionut-t/gonx/utils"
+	"time"
+)
+
+type BundleAnalysisBenchmark struct {
+	ID          string     `json:"id"`
+	AppName     string     `json:"appName"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	Duration    float64    `json:"duration"`
+	Description string     `json:"description"`
+	Stats       BuildStats `json:"stats"`
+}
+
+type InitialStats struct {
+	Main      int64 `json:"main"`
+	Runtime   int64 `json:"runtime"`
+	Polyfills int64 `json:"polyfills"`
+	Total     int64 `json:"total"`
+}
+
+type BuildStats struct {
+	Initial      InitialStats `json:"initial"`
+	Lazy         int64        `json:"lazy"`
+	Assets       int64        `json:"assets"`
+	Total        int64        `json:"total"`
+	OverallTotal int64        `json:"overallTotal"` // includes assets
+	Styles       int64        `json:"styles"`
+}
+
+func (stats *BuildStats) String() string {
+	return utils.PrettyJSON(stats)
+}
+
+type BulkBuildBenchmark struct {
+	ID          uuid.UUID `json:"id"`
+	AppName     string    `json:"appName"`
+	CreatedAt   time.Time `json:"createdAt"`
+	Duration    float64   `json:"duration"`
+	Description string    `json:"description"`
+	Min         float64   `json:"min"`
+	Max         float64   `json:"max"`
+	Average     float64   `json:"avg"`
+	TotalRuns   int       `json:"totalRuns"`
+}
