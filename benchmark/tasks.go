@@ -13,8 +13,6 @@ import (
 	"strings"
 )
 
-const listHeight = 10
-
 var (
 	listTitleStyle    = lipgloss.NewStyle().MarginLeft(2)
 	itemStyle         = lipgloss.NewStyle().PaddingLeft(4)
@@ -80,7 +78,7 @@ func (m tasksModel) View() string {
 	return "\n" + m.list.View() + "\n" + m.help
 }
 
-func newTasksList(width int) tasksModel {
+func newTasksList(width, height int) tasksModel {
 	items := make([]list.Item, len(tasks))
 
 	for i, t := range tasks {
@@ -89,7 +87,7 @@ func newTasksList(width int) tasksModel {
 
 	const defaultWidth = 20
 
-	tasksList := list.New(items, taskItemDelegate{}, defaultWidth, listHeight)
+	tasksList := list.New(items, taskItemDelegate{}, defaultWidth, height)
 	tasksList.Title = "Select a task"
 	tasksList.SetShowStatusBar(false)
 	tasksList.SetFilteringEnabled(false)
@@ -143,6 +141,8 @@ func newTasksList(width int) tasksModel {
 	historyHelp.SetKeyMap(historyKeys)
 
 	helpView := helpStyle.Render(listHelp.View() + "\n\n" + historyHelp.View())
+
+	tasksList.SetHeight(height - lipgloss.Height(helpView))
 
 	m := tasksModel{list: tasksList, help: helpView}
 

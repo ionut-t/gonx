@@ -85,7 +85,7 @@ func (m appsModel) View() string {
 	return "\n" + m.list.View()
 }
 
-func newAppSelectionList(width int, apps []workspace.Application) appsModel {
+func newAppSelectionList(width, height int, apps []workspace.Application) appsModel {
 	var items []list.Item
 
 	for _, app := range apps {
@@ -94,7 +94,7 @@ func newAppSelectionList(width int, apps []workspace.Application) appsModel {
 
 	const defaultWidth = 20
 
-	appsList := list.New(items, appItemDelegate{}, defaultWidth, listHeight)
+	appsList := list.New(items, appItemDelegate{}, defaultWidth, height)
 	appsList.Title = "Select one or more apps"
 	appsList.SetShowStatusBar(false)
 	appsList.SetFilteringEnabled(false)

@@ -77,7 +77,7 @@ func New(options Options) Model {
 		width:     options.Width,
 		height:    options.Height,
 		workspace: options.Workspace,
-		taskList:  newTasksList(options.Width),
+		taskList:  newTasksList(options.Width, options.Height),
 	}
 }
 
@@ -141,7 +141,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case taskMsg:
 		m.view = selectAppsView
-		m.appList = newAppSelectionList(m.width, m.workspace.Applications)
+		m.appList = newAppSelectionList(m.width, m.height, m.workspace.Applications)
 
 	case appsSelectedMsg:
 		switch m.taskList.selected {
