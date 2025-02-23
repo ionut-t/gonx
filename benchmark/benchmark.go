@@ -7,6 +7,7 @@ import (
 	buildAnalyserHistory "github.com/ionut-t/gonx/benchmark/build-analyser-history"
 	bundleAnalyser "github.com/ionut-t/gonx/benchmark/bundle-analyser"
 	bundleAnalyserHistory "github.com/ionut-t/gonx/benchmark/bundle-analyser-history"
+	lintAnalyser "github.com/ionut-t/gonx/benchmark/lint-analyser"
 	"github.com/ionut-t/gonx/internal/messages"
 	"github.com/ionut-t/gonx/workspace"
 	"slices"
@@ -37,6 +38,7 @@ const (
 	buildAnalyserView
 	bundleAnalyserHistoryView
 	buildAnalyserHistoryView
+	lintAnalyserView
 )
 
 var historyViews = []view{
@@ -53,14 +55,16 @@ type Model struct {
 
 	workspace workspace.Model
 
-	taskList tasksModel
-	appList  appsModel
+	taskList     tasksModel
+	projectsList selectProjectsModel
 
-	bundleAnalysis            bundleAnalyser.Model
-	bundleAnalysisHistoryView bundleAnalyserHistory.Model
+	bundleAnalyser            bundleAnalyser.Model
+	bundleAnalyserHistoryView bundleAnalyserHistory.Model
 
-	bulkBuild            buildAnalyser.Model
-	bulkBuildHistoryView buildAnalyserHistory.Model
+	buildAnalyser            buildAnalyser.Model
+	buildAnalyserHistoryView buildAnalyserHistory.Model
+
+	lintAnalyser lintAnalyser.Model
 
 	width  int
 	height int
@@ -91,19 +95,22 @@ func (m Model) View() string {
 		return viewStyle(m.taskList.View())
 
 	case selectAppsView:
-		return m.appList.View()
+		return m.projectsList.View()
 
 	case bundleAnalyserView:
-		return viewStyle(m.bundleAnalysis.View())
+		return viewStyle(m.bundleAnalyser.View())
 
 	case bundleAnalyserHistoryView:
-		return m.bundleAnalysisHistoryView.View()
+		return m.bundleAnalyserHistoryView.View()
 
 	case buildAnalyserView:
-		return viewStyle(m.bulkBuild.View())
+		return viewStyle(m.buildAnalyser.View())
 
 	case buildAnalyserHistoryView:
-		return m.bulkBuildHistoryView.View()
+		return m.buildAnalyserHistoryView.View()
+
+	case lintAnalyserView:
+		return viewStyle(m.lintAnalyser.View())
 	}
 
 	return ""
@@ -127,35 +134,58 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case "z":
-			if (m.view == selectTasksView || m.isHistoryView()) && !m.bundleAnalysisHistoryView.Searching() {
+			if (m.view == selectTasksView || m.isHistoryView()) && !m.bundleAnalyserHistoryView.Searching() {
 				m.view = bundleAnalyserHistoryView
-				m.bundleAnalysisHistoryView = bundleAnalyserHistory.New(m.width, m.height)
+				m.bundleAnalyserHistoryView = bundleAnalyserHistory.New(m.width, m.height)
 			}
 
 		case "x":
-			if m.view == selectTasksView || m.isHistoryView() && !m.bundleAnalysisHistoryView.Searching() {
+			if m.view == selectTasksView || m.isHistoryView() && !m.bundleAnalyserHistoryView.Searching() {
 				m.view = buildAnalyserHistoryView
-				m.bulkBuildHistoryView = buildAnalyserHistory.New(m.width, m.height)
+				m.buildAnalyserHistoryView = buildAnalyserHistory.New(m.width, m.height)
 			}
 		}
 
 	case taskMsg:
 		m.view = selectAppsView
-		m.appList = newAppSelectionList(m.width, m.height, m.workspace.Applications)
 
-	case appsSelectedMsg:
+		includedTypes := []workspace.ProjectType{workspace.ApplicationType}
+
+		if m.taskList.selected == lintAnalyserTask {
+			includedTypes = append(includedTypes, workspace.LibraryType)
+		}
+
+		options := projectsListOptions{
+			width:       m.width,
+			height:      m.height,
+			projects:    m.workspace.GetProjects(includedTypes),
+			displayType: m.taskList.selected == lintAnalyserTask,
+		}
+
+		m.projectsList = newSelectionList(options)
+
+	case projectsSelectedMsg:
 		switch m.taskList.selected {
-		case bundleAnalysisTask:
+		case bundleAnalyserTask:
 			m.view = bundleAnalyserView
-			m.bundleAnalysis = bundleAnalyser.New(msg, m.width, m.height)
+			var apps = make([]workspace.Application, 0, len(msg))
+			for _, app := range msg {
+				apps = append(apps, app.(workspace.Application))
+			}
 
-		case bulkBuildTask:
+			m.bundleAnalyser = bundleAnalyser.New(apps, m.width, m.height)
+
+		case buildAnalyserTask:
 			m.view = buildAnalyserView
 			var apps = make([]string, 0, len(msg))
 			for _, app := range msg {
-				apps = append(apps, app.Name)
+				apps = append(apps, app.GetName())
 			}
-			m.bulkBuild = buildAnalyser.New(apps, m.width, m.height)
+			m.buildAnalyser = buildAnalyser.New(apps, m.width, m.height)
+
+		case lintAnalyserTask:
+			m.view = lintAnalyserView
+			m.lintAnalyser = lintAnalyser.New(msg, m.width, m.height)
 		}
 
 	case messages.NavigateToViewMsg:
@@ -166,8 +196,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.view == selectTasksView {
-		bModel, cmd := m.bundleAnalysis.Update(msg)
-		m.bundleAnalysis = bModel.(bundleAnalyser.Model)
+		bModel, cmd := m.bundleAnalyser.Update(msg)
+		m.bundleAnalyser = bModel.(bundleAnalyser.Model)
 		cmds = append(cmds, cmd)
 	}
 
@@ -178,28 +208,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 
 	case selectAppsView:
-		aModel, cmd := m.appList.Update(msg)
-		m.appList = aModel.(appsModel)
+		aModel, cmd := m.projectsList.Update(msg)
+		m.projectsList = aModel.(selectProjectsModel)
 		cmds = append(cmds, cmd)
 
 	case bundleAnalyserView:
-		bModel, cmd := m.bundleAnalysis.Update(msg)
-		m.bundleAnalysis = bModel.(bundleAnalyser.Model)
+		bModel, cmd := m.bundleAnalyser.Update(msg)
+		m.bundleAnalyser = bModel.(bundleAnalyser.Model)
 		cmds = append(cmds, cmd)
 
 	case buildAnalyserView:
-		bModel, cmd := m.bulkBuild.Update(msg)
-		m.bulkBuild = bModel.(buildAnalyser.Model)
+		bModel, cmd := m.buildAnalyser.Update(msg)
+		m.buildAnalyser = bModel.(buildAnalyser.Model)
 		cmds = append(cmds, cmd)
 
 	case bundleAnalyserHistoryView:
-		bModel, cmd := m.bundleAnalysisHistoryView.Update(msg)
-		m.bundleAnalysisHistoryView = bModel.(bundleAnalyserHistory.Model)
+		bModel, cmd := m.bundleAnalyserHistoryView.Update(msg)
+		m.bundleAnalyserHistoryView = bModel.(bundleAnalyserHistory.Model)
 		cmds = append(cmds, cmd)
 
 	case buildAnalyserHistoryView:
-		bModel, cmd := m.bulkBuildHistoryView.Update(msg)
-		m.bulkBuildHistoryView = bModel.(buildAnalyserHistory.Model)
+		bModel, cmd := m.buildAnalyserHistoryView.Update(msg)
+		m.buildAnalyserHistoryView = bModel.(buildAnalyserHistory.Model)
+		cmds = append(cmds, cmd)
+
+	case lintAnalyserView:
+		lModel, cmd := m.lintAnalyser.Update(msg)
+		m.lintAnalyser = lModel.(lintAnalyser.Model)
 		cmds = append(cmds, cmd)
 	}
 

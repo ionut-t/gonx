@@ -8,4 +8,7 @@ const (
 
 	BuildAnalyserFile     = "build-benchmarks.json"
 	BuildAnalyserFilePath = BenchmarkFolderPath + "/" + BuildAnalyserFile
+
+	LintAnalyserFile     = "lint-benchmarks.json"
+	LintAnalyserFilePath = BenchmarkFolderPath + "/" + LintAnalyserFile
 )

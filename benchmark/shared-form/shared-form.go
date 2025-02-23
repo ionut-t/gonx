@@ -1,4 +1,4 @@
-package build_analyser
+package shared_form
 
 import (
 	"fmt"
@@ -10,25 +10,17 @@ import (
 	"strconv"
 )
 
-type formMsg struct {
-	description string
-	count       int
+type FormMsg struct {
+	Description string
+	Count       int
 }
 
-type formField int
-
-const (
-	countField formField = iota
-	descriptionField
-)
-
-type formModel struct {
-	form         *huh.Form
-	help         help.Model
-	focusedField formField
+type Model struct {
+	form *huh.Form
+	help help.Model
 }
 
-func newFormModel() formModel {
+func New() Model {
 	count := huh.NewInput().
 		Key("count").
 		Title("How many times do you want it to run?").
@@ -58,15 +50,14 @@ func newFormModel() formModel {
 		Key("description").
 		Title("You can provide an optional description")
 
-	form := formModel{
+	form := Model{
 		form: huh.NewForm(
 			huh.NewGroup(
 				count,
 				description,
 			),
 		).WithTheme(huh.ThemeCatppuccin()),
-		help:         help.New(),
-		focusedField: countField,
+		help: help.New(),
 	}
 
 	form.form.WithKeyMap(&formKeyMap)
@@ -76,15 +67,15 @@ func newFormModel() formModel {
 	return form
 }
 
-func (m formModel) Init() tea.Cmd {
+func (m Model) Init() tea.Cmd {
 	return m.form.Init()
 }
 
-func (m formModel) View() string {
+func (m Model) View() string {
 	return m.form.View() + "\n" + m.help.View(formHelp)
 }
 
-func (m formModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
@@ -119,7 +110,7 @@ func (m formModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m formModel) dispatchFormMsgIfValid() tea.Cmd {
+func (m Model) dispatchFormMsgIfValid() tea.Cmd {
 	countStr := m.form.GetString("count")
 	count, err := strconv.Atoi(countStr)
 
@@ -127,9 +118,9 @@ func (m formModel) dispatchFormMsgIfValid() tea.Cmd {
 		return nil
 	}
 
-	return messages.Dispatch(formMsg{
-		count:       count,
-		description: m.form.GetString("description"),
+	return messages.Dispatch(FormMsg{
+		Count:       count,
+		Description: m.form.GetString("description"),
 	})
 }
 

@@ -1,4 +1,4 @@
-package build_analyser
+package lint_analyser
 
 import (
 	"fmt"
@@ -11,6 +11,7 @@ import (
 	"github.com/ionut-t/gonx/ui/styles"
 	"github.com/ionut-t/gonx/ui/suspense"
 	"github.com/ionut-t/gonx/ui/viewport"
+	"github.com/ionut-t/gonx/workspace"
 	"strings"
 	"time"
 )
@@ -29,7 +30,7 @@ const (
 
 type Model struct {
 	view     view
-	apps     []string
+	projects []workspace.Project
 	form     form.Model
 	viewport viewport.Model
 	suspense suspense.Model
@@ -41,20 +42,21 @@ type Model struct {
 	count          int
 	completed      int
 	totalProcesses int
-	results        []BuildBenchmark
+	results        []LintBenchmark
 }
 
-func New(apps []string, width, height int) Model {
+func New(projects []workspace.Project, width, height int) Model {
 	return Model{
-		apps:   apps,
-		width:  width,
-		height: height,
-		form:   form.New(),
+		projects: projects,
+		width:    width,
+		height:   height,
+		form:     form.New(),
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return m.form.Init()
+	return nil
+	//return m.form.Init()
 }
 
 func (m Model) View() string {
@@ -98,21 +100,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, messages.Dispatch(StartMsg{
 			StartTime:   time.Now(),
-			Apps:        m.apps,
+			Projects:    m.projects,
 			Count:       msg.Count,
 			Description: msg.Description,
 		})
 
 	case StartMsg:
 		m.completed = 0
-		m.results = make([]BuildBenchmark, 0)
+		m.results = make([]LintBenchmark, 0)
 		m.suspense = suspense.New("Starting benchmark...", true)
 		m.progress = progress.New(progress.WithDefaultGradient())
 		m.progress.Width = m.width - padding*2
 		m.progress.PercentageStyle = styles.Primary
 
 		return m, tea.Batch(
-			startBenchmark(msg.Apps, msg.Description, msg.Count),
+			startBenchmark(msg.Projects, msg.Description, msg.Count),
 			m.suspense.Spinner.Tick,
 			m.progress.SetPercent(0.0),
 		)
@@ -125,21 +127,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.suspense.Loading = true
 		return m, m.suspense.Spinner.Tick
 
-	case BuildStartMsg:
-		m.suspense.Message = fmt.Sprintf("Building %s application...", styles.Primary.Bold(true).Render(msg.App))
+	case LintStartMsg:
+		m.suspense.Message = fmt.Sprintf("Linting %s %s...",
+			styles.Primary.Bold(true).Render(msg.Project.GetName()),
+			msg.Project.GetType(),
+		)
 		return m, m.progress.IncrPercent(m.getProgressIncrement())
 
-	case BuildCompleteMsg:
+	case LintCompleteMsg:
 		m.completed++
 		return m, m.progress.IncrPercent(m.getProgressIncrement())
 
-	case BuildFailedMsg:
+	case LintFailedMsg:
 		m.completed++
 		m.suspense.Message = msg.Error.Error()
 		return m.handleBenchmarkBuild()
 
 	case WriteStatsStartMsg:
-		m.suspense.Message = fmt.Sprintf("Writing stats for %s application...", styles.Primary.Bold(true).Render(msg.App))
+		m.suspense.Message = fmt.Sprintf("Writing stats for %s %s...",
+			styles.Primary.Bold(true).Render(msg.Project.GetName()),
+			msg.Project.GetType(),
+		)
 		return m, m.progress.IncrPercent(m.getProgressIncrement())
 
 	case WriteStatsCompleteMsg:
@@ -207,7 +215,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleBenchmarkBuild() (Model, tea.Cmd) {
-	if m.completed == (len(m.apps) * m.count) {
+	if m.completed == (len(m.projects) * m.count) {
 		return m, tea.Sequence(
 			m.progress.SetPercent(1.0),
 			// wait for the progress bar to finish animating
@@ -235,7 +243,7 @@ func renderBenchmarkResults(m *Model) {
 		content := lipgloss.JoinVertical(
 			lipgloss.Left,
 			border,
-			fmt.Sprintf("Stats for %s app:", styles.Primary.Bold(true).Render(bm.AppName)),
+			fmt.Sprintf("Stats for %s %s:", styles.Primary.Bold(true).Render(bm.Project), bm.Type),
 			border,
 			renderStats(bm),
 			border,
@@ -264,7 +272,7 @@ func renderBenchmarkResults(m *Model) {
 	m.viewport = viewport.New(options)
 }
 
-func renderStats(bm BuildBenchmark) string {
+func renderStats(bm LintBenchmark) string {
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
 		styles.Success.Render(fmt.Sprintf("%sMin: %.2fs", styles.IconStyle("🕒"), bm.Min)),

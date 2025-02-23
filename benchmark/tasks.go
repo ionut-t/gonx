@@ -24,13 +24,15 @@ var (
 var tasks = [...]string{
 	"Bundle analyser",
 	"Build analyser",
+	"Lint analyser",
 }
 
 type taskType int
 
 const (
-	bundleAnalysisTask taskType = iota
-	bulkBuildTask
+	bundleAnalyserTask taskType = iota
+	buildAnalyserTask
+	lintAnalyserTask
 )
 
 type taskMsg taskType

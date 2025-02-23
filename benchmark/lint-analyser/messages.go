@@ -1,11 +1,12 @@
-package build_analyser
+package lint_analyser
 
 import (
+	"github.com/ionut-t/gonx/workspace"
 	"time"
 )
 
 type StartMsg struct {
-	Apps        []string
+	Projects    []workspace.Project
 	Description string
 	Count       int
 	StartTime   time.Time
@@ -17,35 +18,35 @@ type NxCacheResetStartMsg struct {
 	StartTime time.Time
 }
 
-type BuildStartMsg struct {
-	App       string
+type LintStartMsg struct {
+	Project   workspace.Project
 	StartTime time.Time
 }
 
 type WriteStatsStartMsg struct {
-	App       string
+	Project   workspace.Project
 	StartTime time.Time
 }
 
 type WriteStatsCompleteMsg struct {
-	App       string
+	Project   workspace.Project
 	Time      time.Time
-	Benchmark BuildBenchmark
+	Benchmark LintBenchmark
 }
 
 type WriteStatsFailedMsg struct {
-	App   string
-	Time  time.Time
-	Error error
+	Project workspace.Project
+	Time    time.Time
+	Error   error
 }
 
-type BuildCompleteMsg struct {
-	App      string
+type LintCompleteMsg struct {
+	Project  workspace.Project
 	Duration float64
 }
 
-type BuildFailedMsg struct {
-	App      string
+type LintFailedMsg struct {
+	Project  workspace.Project
 	RunIndex int
 	EndTime  time.Time
 	Error    error

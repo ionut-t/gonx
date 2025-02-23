@@ -3,6 +3,7 @@ package benchmark_data
 import (
 	"github.com/google/uuid"
 	"github.com/ionut-t/gonx/utils"
+	"github.com/ionut-t/gonx/workspace"
 	"time"
 )
 
@@ -45,4 +46,17 @@ type BuildBenchmark struct {
 	Max         float64   `json:"max"`
 	Average     float64   `json:"avg"`
 	TotalRuns   int       `json:"totalRuns"`
+}
+
+type LintBenchmark struct {
+	ID          uuid.UUID             `json:"id"`
+	Project     string                `json:"project"`
+	Type        workspace.ProjectType `json:"type"`
+	CreatedAt   time.Time             `json:"createdAt"`
+	Duration    float64               `json:"duration"`
+	Description string                `json:"description"`
+	Min         float64               `json:"min"`
+	Max         float64               `json:"max"`
+	Average     float64               `json:"avg"`
+	TotalRuns   int                   `json:"totalRuns"`
 }

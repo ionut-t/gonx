@@ -7,24 +7,26 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/ionut-t/gonx/internal/messages"
 	"github.com/ionut-t/gonx/ui/styles"
+	"github.com/ionut-t/gonx/utils"
 	"github.com/ionut-t/gonx/workspace"
 	"io"
 	"slices"
 	"strings"
 )
 
-type appsSelectedMsg []workspace.Application
+type projectsSelectedMsg []workspace.Project
 
-type appsModel struct {
-	list list.Model
-	apps []workspace.Application
+type selectProjectsModel struct {
+	list        list.Model
+	projects    []workspace.Project
+	displayType bool
 }
 
-func (m appsModel) Init() tea.Cmd {
+func (m selectProjectsModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m appsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m selectProjectsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.list.SetWidth(msg.Width)
@@ -33,25 +35,25 @@ func (m appsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch keypress := msg.String(); keypress {
 		case " ":
-			item, ok := m.list.SelectedItem().(appItem)
+			item, ok := m.list.SelectedItem().(selectItem)
 
 			if ok {
 				selectedIndex := m.list.Index()
-				selected := slices.Contains(m.getAppNames(), item.app.Name)
+				selected := slices.Contains(m.getProjectNames(), item.item.GetName())
 
 				if selected {
-					var newApps []workspace.Application
+					var newItems []workspace.Project
 
-					for _, app := range m.apps {
-						if app.Name != item.app.Name {
-							newApps = append(newApps, app)
+					for _, i := range m.projects {
+						if i.GetName() != item.item.GetName() {
+							newItems = append(newItems, i)
 						}
 					}
 
 					item.selected = false
-					m.apps = newApps
+					m.projects = newItems
 				} else {
-					m.apps = append(m.apps, item.app)
+					m.projects = append(m.projects, item.item)
 					item.selected = true
 				}
 
@@ -63,12 +65,12 @@ func (m appsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "enter":
-			if len(m.apps) == 0 {
+			if len(m.projects) == 0 {
 				return m, nil
 			}
 
 			return m, func() tea.Msg {
-				return appsSelectedMsg(m.apps)
+				return projectsSelectedMsg(m.projects)
 			}
 
 		case "esc", "backspace":
@@ -81,33 +83,41 @@ func (m appsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m appsModel) View() string {
+func (m selectProjectsModel) View() string {
 	return "\n" + m.list.View()
 }
 
-func newAppSelectionList(width, height int, apps []workspace.Application) appsModel {
-	var items []list.Item
+type projectsListOptions struct {
+	projects      []workspace.Project
+	width, height int
+	displayType   bool
+}
 
-	for _, app := range apps {
-		items = append(items, appItem{app: app, selected: false})
+func newSelectionList(options projectsListOptions) selectProjectsModel {
+	var listItems []list.Item
+
+	for _, item := range options.projects {
+		listItems = append(listItems, selectItem{item: item, selected: false})
 	}
 
 	const defaultWidth = 20
 
-	appsList := list.New(items, appItemDelegate{}, defaultWidth, height)
-	appsList.Title = "Select one or more apps"
-	appsList.SetShowStatusBar(false)
-	appsList.SetFilteringEnabled(false)
-	appsList.Styles.Title = listTitleStyle
-	appsList.Help.Styles.ShortKey = styles.Subtext0
-	appsList.Help.Styles.ShortDesc = styles.Overlay1
-	appsList.Help.Styles.ShortSeparator = styles.Subtext0
-	appsList.Styles.HelpStyle = helpStyle
+	itemsList := list.New(listItems, selectItemDelegate{
+		displayType: options.displayType,
+	}, defaultWidth, options.height)
+	itemsList.Title = "Select one or more projects"
+	itemsList.SetShowStatusBar(false)
+	itemsList.SetFilteringEnabled(false)
+	itemsList.Styles.Title = listTitleStyle
+	itemsList.Help.Styles.ShortKey = styles.Subtext0
+	itemsList.Help.Styles.ShortDesc = styles.Overlay1
+	itemsList.Help.Styles.ShortSeparator = styles.Subtext0
+	itemsList.Styles.HelpStyle = helpStyle
 
-	appsList.SetWidth(width)
-	appsList.InfiniteScrolling = true
+	itemsList.SetWidth(options.width)
+	itemsList.InfiniteScrolling = true
 
-	appsList.KeyMap = list.KeyMap{
+	itemsList.KeyMap = list.KeyMap{
 		// Browsing.
 		CursorUp: key.NewBinding(
 			key.WithKeys("up", "k"),
@@ -124,7 +134,7 @@ func newAppSelectionList(width, height int, apps []workspace.Application) appsMo
 		ForceQuit: key.NewBinding(key.WithKeys("ctrl+c")),
 	}
 
-	appsList.AdditionalShortHelpKeys = func() []key.Binding {
+	itemsList.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{
 			key.NewBinding(
 				key.WithKeys(" "),
@@ -141,51 +151,57 @@ func newAppSelectionList(width, height int, apps []workspace.Application) appsMo
 		}
 	}
 
-	return appsModel{list: appsList, apps: make([]workspace.Application, 0)}
+	return selectProjectsModel{
+		list:        itemsList,
+		projects:    make([]workspace.Project, 0),
+		displayType: options.displayType,
+	}
 }
 
-type appItem struct {
-	app      workspace.Application
+type selectItem struct {
+	item     workspace.Project
 	selected bool
 }
 
-func (i appItem) FilterValue() string { return "" }
+func (i selectItem) FilterValue() string { return "" }
 
-type appItemDelegate struct {
-	selected bool
+type selectItemDelegate struct {
+	displayType bool
 }
 
-func (d appItemDelegate) Height() int                             { return 1 }
-func (d appItemDelegate) Spacing() int                            { return 0 }
-func (d appItemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
-func (d appItemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
-	i, ok := listItem.(appItem)
+func (d selectItemDelegate) Height() int                             { return 1 }
+func (d selectItemDelegate) Spacing() int                            { return 0 }
+func (d selectItemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
+func (d selectItemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
+	i, ok := listItem.(selectItem)
 
 	if !ok {
 		return
 	}
 
-	str := fmt.Sprintf("%s", i.app.Name)
+	str := fmt.Sprintf("%s", i.item.GetName())
 
 	fn := itemStyle.Render
 
+	projectType := utils.Ternary(d.displayType, " ("+string(i.item.GetType())+")", "")
+
 	if i.selected {
 		fn = func(s ...string) string {
-			return selectedItemStyle.PaddingLeft(4).Render("(*) " + strings.Join(s, " "))
+			return selectedItemStyle.PaddingLeft(4).Render("(*) " + strings.Join(s, " ") + projectType)
 		}
 	} else {
 		fn = func(s ...string) string {
-			return itemStyle.Render("( ) " + strings.Join(s, " "))
+			return itemStyle.Render("( ) " + strings.Join(s, " ") + projectType)
 		}
 	}
 
 	if index == m.Index() {
 		fn = func(s ...string) string {
 			if i.selected {
-				return selectedItemStyle.Render("> (*) " + strings.Join(s, " "))
+				return selectedItemStyle.Render("> (*) " + strings.Join(s, " ") + projectType)
 			}
 
-			return currentItemStyle.Render("> ( ) " + strings.Join(s, " "))
+			return currentItemStyle.Render("> ( ) " + strings.Join(s, " ") + projectType)
 		}
 	}
 
@@ -196,11 +212,11 @@ func (d appItemDelegate) Render(w io.Writer, m list.Model, index int, listItem l
 	}
 }
 
-func (m appsModel) getAppNames() []string {
+func (m selectProjectsModel) getProjectNames() []string {
 	var names []string
 
-	for _, app := range m.apps {
-		names = append(names, app.Name)
+	for _, item := range m.projects {
+		names = append(names, item.GetName())
 	}
 
 	return names

@@ -19,23 +19,63 @@ type Model struct {
 	E2EApps      []E2EApp      `json:"e2eApps"`
 }
 
-func (w *Model) String() string {
-	return utils.PrettyJSON(w)
+func (m *Model) String() string {
+	return utils.PrettyJSON(m)
+}
+
+type ProjectType string
+
+const (
+	ApplicationType ProjectType = "application"
+	LibraryType     ProjectType = "library"
+	E2EType         ProjectType = "e2e"
+)
+
+type Project interface {
+	GetName() string
+	GetType() ProjectType
 }
 
 type Application struct {
-	Name       string `json:"name"`
-	OutputPath string `json:"outputPath"`
+	Name       string      `json:"name"`
+	OutputPath string      `json:"outputPath"`
+	Type       ProjectType `json:"type"`
+}
+
+func (a Application) GetName() string {
+	return a.Name
+}
+
+func (a Application) GetType() ProjectType {
+	return a.Type
 }
 
 type Library struct {
-	Name  string `json:"name"`
-	Suite string `json:"suite"`
+	Name  string      `json:"name"`
+	Suite string      `json:"suite"`
+	Type  ProjectType `json:"type"`
+}
+
+func (l Library) GetName() string {
+	return l.Name
+}
+
+func (l Library) GetType() ProjectType {
+	return l.Type
 }
 
 type E2EApp struct {
-	Name  string `json:"name"`
-	Suite string `json:"suite"`
+	Name  string      `json:"name"`
+	Suite string      `json:"suite"`
+	Type  ProjectType `json:"type"`
+}
+
+func (e E2EApp) GetName() string {
+	return e.Name
+}
+
+func (e E2EApp) GetType() ProjectType {
+	return e.Type
 }
 
 func getAllApps() ([]Application, []Library, []E2EApp, error) {
@@ -85,19 +125,26 @@ func parseApps(allApps []string) ([]Application, []Library, []E2EApp) {
 				}
 
 				if strings.Contains(app, "-e2e") {
-					e2eApps = append(e2eApps, E2EApp{Name: app})
+					e2eApps = append(e2eApps, E2EApp{
+						Name: app,
+						Type: E2EType,
+					})
 					continue
 				}
 
-				if projectType == "application" {
+				if ProjectType(projectType) == ApplicationType {
 					apps = append(apps, Application{
 						Name:       app,
 						OutputPath: projectConfig.Targets.Build.Options.OutputPath,
+						Type:       ApplicationType,
 					})
 				}
 
-				if projectType == "library" {
-					libs = append(libs, Library{Name: app})
+				if ProjectType(projectType) == LibraryType {
+					libs = append(libs, Library{
+						Name: filepath.Base(app),
+						Type: LibraryType,
+					})
 				}
 			}
 		}
@@ -135,4 +182,32 @@ func New() (*Model, error) {
 	workspace.E2EApps = e2eApps
 
 	return &workspace, nil
+}
+
+func (m Model) GetProjects(includeTypes []ProjectType) []Project {
+	var projects []Project
+
+	if len(includeTypes) == 0 {
+		return projects
+	}
+
+	if slices.Contains(includeTypes, ApplicationType) {
+		for _, app := range m.Applications {
+			projects = append(projects, app)
+		}
+	}
+
+	if slices.Contains(includeTypes, LibraryType) {
+		for _, lib := range m.Libraries {
+			projects = append(projects, lib)
+		}
+	}
+
+	if slices.Contains(includeTypes, E2EType) {
+		for _, e2eApp := range m.E2EApps {
+			projects = append(projects, e2eApp)
+		}
+	}
+
+	return projects
 }

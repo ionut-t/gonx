@@ -1,4 +1,4 @@
-package build_analyser
+package lint_analyser
 
 import (
 	"encoding/json"
@@ -8,15 +8,16 @@ import (
 	data "github.com/ionut-t/gonx/benchmark/data"
 	"github.com/ionut-t/gonx/internal/constants"
 	"github.com/ionut-t/gonx/utils"
+	"github.com/ionut-t/gonx/workspace"
 	"math"
 	"os"
 	"os/exec"
 	"time"
 )
 
-type BuildBenchmark data.BuildBenchmark
+type LintBenchmark data.LintBenchmark
 
-func (b *BuildBenchmark) WriteStats() error {
+func (b *LintBenchmark) WriteStats() error {
 	b.CreatedAt = time.Now()
 
 	benchmark, err := utils.ToJsonString(b)
@@ -26,7 +27,7 @@ func (b *BuildBenchmark) WriteStats() error {
 	}
 
 	var results []json.RawMessage
-	currentValue, err := os.ReadFile(constants.BuildAnalyserFilePath)
+	currentValue, err := os.ReadFile(constants.LintAnalyserFilePath)
 
 	if err == nil && len(currentValue) > 0 {
 		if err := json.Unmarshal(currentValue, &results); err != nil {
@@ -48,24 +49,23 @@ func (b *BuildBenchmark) WriteStats() error {
 		return err
 	}
 
-	return os.WriteFile(constants.BuildAnalyserFilePath, content, 0644)
+	return os.WriteFile(constants.LintAnalyserFilePath, content, 0644)
 }
 
-func startBenchmark(apps []string, description string, count int) tea.Cmd {
+func startBenchmark(projects []workspace.Project, description string, count int) tea.Cmd {
 	/// Calculate total number of processes:
 	// - Initial TotalProcessesMsg (1)
 	// - For each app:
 	//   - For each run (count times):
 	//     - NxCacheResetStartMsg (1)
-	//     - BuildStartMsg + BuildCompleteMsg/BuildFailedMsg (2)
+	//     - LintStartMsg + LintCompleteMsg/LintFailedMsg (2)
 	//   - After all runs:
 	//     - WriteStatsStartMsg + WriteStatsCompleteMsg/WriteStatsFailedMsg (2)
-	totalProcesses := 1 + len(apps)*(3*count+2)
+	totalProcesses := 1 + len(projects)*(3*count+2)
 
 	// Create channel for build results
-	results := make(chan tea.Msg, totalProcesses) // Buffer for start and complete/fail messages, nx reset
+	results := make(chan tea.Msg, totalProcesses)
 
-	// Run builds sequentially in a separate goroutine
 	go func() {
 		benchmarkStartTime := time.Now()
 
@@ -73,14 +73,13 @@ func startBenchmark(apps []string, description string, count int) tea.Cmd {
 
 		results <- TotalProcessesMsg(totalProcesses - 1) // -1 for this message
 
-		for _, app := range apps {
-			var currentBuildEndTime time.Time
-
+		for _, project := range projects {
 			durations := make([]float64, count)
 
-			benchmark := BuildBenchmark{
+			benchmark := LintBenchmark{
 				ID:          uuid.New(),
-				AppName:     app,
+				Project:     project.GetName(),
+				Type:        project.GetType(),
 				Description: description,
 			}
 
@@ -91,47 +90,45 @@ func startBenchmark(apps []string, description string, count int) tea.Cmd {
 
 				// First, run nx reset for the whole workspace
 				cmdReset := exec.Command("nx", "reset")
-				cmdReset.Env = append(os.Environ(), "NX_DAEMON=false")
 
 				if err := cmdReset.Run(); err != nil {
-					// If reset fails, send failed messages for all apps
-					for _, app := range apps {
-						results <- BuildFailedMsg{
-							App:   app,
-							Error: fmt.Errorf("nx reset failed: %v", err),
+					// If reset fails, send failed messages for all projects
+					for _, app := range projects {
+						results <- LintFailedMsg{
+							Project: app,
+							Error:   fmt.Errorf("nx reset failed: %v", err),
 						}
 					}
 					return
 				}
 
-				startTime := time.Now()
-
 				// Send start message
-				results <- BuildStartMsg{
-					App:       app,
-					StartTime: startTime,
+				results <- LintStartMsg{
+					Project:   project,
+					StartTime: time.Now(),
 				}
 
-				// Run build
-				cmdBuild := exec.Command("nx", "build", app)
-				cmdBuild.Env = append(os.Environ(), "NX_DAEMON=false")
-				if err := cmdBuild.Run(); err != nil {
-					results <- BuildFailedMsg{
-						App:      app,
+				startTime := time.Now()
+
+				// Run lint
+				cmdLint := exec.Command("nx", "lint", project.GetName())
+
+				if err := cmdLint.Run(); err != nil {
+					results <- LintFailedMsg{
+						Project:  project,
 						RunIndex: i,
 						EndTime:  time.Now(),
-						Error:    fmt.Errorf("build failed: %v", err),
+						Error:    fmt.Errorf("lint failed: %v", err),
 					}
 					continue // Continue with next run even if one fails
 				}
 
-				currentBuildEndTime = time.Now()
-				duration := currentBuildEndTime.Sub(startTime).Seconds()
+				duration := time.Since(startTime).Seconds()
 
 				durations[i] = duration
 
-				results <- BuildCompleteMsg{
-					App:      app,
+				results <- LintCompleteMsg{
+					Project:  project,
 					Duration: duration,
 				}
 			}
@@ -150,20 +147,20 @@ func startBenchmark(apps []string, description string, count int) tea.Cmd {
 			benchmark.Average = sum / float64(len(durations))
 			benchmark.TotalRuns = count
 
-			results <- WriteStatsStartMsg{App: app, StartTime: time.Now()}
+			results <- WriteStatsStartMsg{Project: project, StartTime: time.Now()}
 
 			err := benchmark.WriteStats()
 			if err != nil {
 				results <- WriteStatsFailedMsg{
-					App:   app,
-					Time:  time.Now(),
-					Error: fmt.Errorf("failed to write stats: %v", err),
+					Project: project,
+					Time:    time.Now(),
+					Error:   fmt.Errorf("failed to write stats: %v", err),
 				}
 				continue
 			}
 
 			results <- WriteStatsCompleteMsg{
-				App:       app,
+				Project:   project,
 				Time:      time.Now(),
 				Benchmark: benchmark,
 			}
