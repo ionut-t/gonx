@@ -1,4 +1,4 @@
-package bundle_analysis
+package bundle_analyser
 
 import (
 	"github.com/ionut-t/gonx/workspace"
@@ -36,7 +36,7 @@ type BuildCompleteMsg struct {
 	App       string
 	Error     error
 	EndTime   time.Time
-	Benchmark BundleAnalysisBenchmark
+	Benchmark BundleBenchmark
 }
 
 type BuildFailedMsg struct {

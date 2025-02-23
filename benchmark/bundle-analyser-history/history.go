@@ -1,4 +1,4 @@
-package bundle_analysis_history
+package bundle_analyser_history
 
 import (
 	"fmt"
@@ -29,7 +29,7 @@ const (
 
 type Model struct {
 	view     view
-	metrics  []data.BundleAnalysisBenchmark
+	metrics  []data.BundleBenchmark
 	viewport viewport.Model
 	table    tableModel
 	search   input.Model
@@ -45,9 +45,9 @@ func New(width, height int) Model {
 
 	helpMenu := help.New(width, height)
 	helpMenu.CombineWithHistoryKeys(keymap.Model{
-		BulkAnalysisHistory: key.NewBinding(
+		BuildAnalyserHistory: key.NewBinding(
 			key.WithKeys("x"),
-			key.WithHelp("x", "bulk analysis history"),
+			key.WithHelp("x", "build analyser history"),
 		),
 	})
 
@@ -191,12 +191,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m Model) getFilteredMetrics() []data.BundleAnalysisBenchmark {
+func (m Model) getFilteredMetrics() []data.BundleBenchmark {
 	if m.search.Value() == "" {
 		return m.metrics
 	}
 
-	filtered := make([]data.BundleAnalysisBenchmark, 0)
+	filtered := make([]data.BundleBenchmark, 0)
 	for _, metric := range m.metrics {
 		if strings.Contains(metric.AppName, m.search.Value()) || strings.Contains(metric.Description, m.search.Value()) {
 			filtered = append(filtered, metric)

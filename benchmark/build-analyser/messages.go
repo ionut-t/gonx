@@ -1,4 +1,4 @@
-package bulk_build
+package build_analyser
 
 import (
 	"time"
@@ -35,7 +35,7 @@ type WriteStatsStartMsg struct {
 type WriteStatsCompleteMsg struct {
 	App       string
 	Time      time.Time
-	Benchmark BulkBuildBenchmark
+	Benchmark BuildBenchmark
 }
 
 type WriteStatsFailedMsg struct {

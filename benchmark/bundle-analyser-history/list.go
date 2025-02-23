@@ -1,4 +1,4 @@
-package bundle_analysis_history
+package bundle_analyser_history
 
 import (
 	"fmt"

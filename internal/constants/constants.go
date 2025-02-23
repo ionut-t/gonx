@@ -3,9 +3,9 @@ package constants
 const (
 	Folder                 = ".gonx"
 	BenchmarkFolderPath    = Folder + "/benchmarks"
-	BundleAnalysisFile     = "bundle_analysis.json"
-	BundleAnalysisFilePath = BenchmarkFolderPath + "/" + BundleAnalysisFile
+	BundleAnalyserFile     = "bundle-benchmarks.json"
+	BundleAnalyserFilePath = BenchmarkFolderPath + "/" + BundleAnalyserFile
 
-	BulkBuildFile     = "bulk_build.json"
-	BulkBuildFilePath = BenchmarkFolderPath + "/" + BulkBuildFile
+	BuildAnalyserFile     = "build-benchmarks.json"
+	BuildAnalyserFilePath = BenchmarkFolderPath + "/" + BuildAnalyserFile
 )

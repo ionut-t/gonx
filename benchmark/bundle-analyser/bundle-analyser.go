@@ -1,4 +1,4 @@
-package bundle_analysis
+package bundle_analyser
 
 import (
 	"fmt"
@@ -42,7 +42,7 @@ type Model struct {
 
 	completed      int
 	totalProcesses int
-	results        []BundleAnalysisBenchmark
+	results        []BundleBenchmark
 }
 
 func New(apps []workspace.Application, width, height int) Model {
@@ -101,7 +101,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case StartMsg:
 		m.completed = 0
-		m.results = make([]BundleAnalysisBenchmark, 0)
+		m.results = make([]BundleBenchmark, 0)
 		m.suspense = suspense.New("Starting benchmark...", true)
 		m.progress = progress.New(progress.WithDefaultGradient())
 		m.progress.Width = m.width - padding*2
@@ -276,7 +276,7 @@ func renderBenchmarkResults(m *Model) {
 	m.viewport = viewport.New(options)
 }
 
-func renderStats(bm BundleAnalysisBenchmark, width int) string {
+func renderStats(bm BundleBenchmark, width int) string {
 	border := styles.NormalText.Render(strings.Repeat("─", min(50, width-padding)))
 
 	return lipgloss.JoinVertical(

@@ -1,4 +1,4 @@
-package bundle_analysis_history
+package bundle_analyser_history
 
 import (
 	"fmt"
@@ -43,7 +43,7 @@ func (m tableModel) View() string {
 	return tableStyles.Base.Render(m.table.View())
 }
 
-func createTable(metrics []data.BundleAnalysisBenchmark, width, height int) tableModel {
+func createTable(metrics []data.BundleBenchmark, width, height int) tableModel {
 	lipgloss.NewStyle().Padding(0, 1)
 	colWidth := (width - 55) / 8
 

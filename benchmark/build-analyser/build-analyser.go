@@ -1,4 +1,4 @@
-package bulk_build
+package build_analyser
 
 import (
 	"fmt"
@@ -39,7 +39,7 @@ type Model struct {
 
 	completed      int
 	totalProcesses int
-	results        []BulkBuildBenchmark
+	results        []BuildBenchmark
 }
 
 func New(apps []string, width, height int) Model {
@@ -104,7 +104,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case StartMsg:
 		m.completed = 0
-		m.results = make([]BulkBuildBenchmark, 0)
+		m.results = make([]BuildBenchmark, 0)
 		m.suspense = suspense.New("Starting benchmark...", true)
 		m.progress = progress.New(progress.WithDefaultGradient())
 		m.progress.Width = m.width - padding*2
@@ -273,7 +273,7 @@ func renderBenchmarkResults(m *Model) {
 	m.viewport = viewport.New(options)
 }
 
-func renderStats(bm BulkBuildBenchmark) string {
+func renderStats(bm BuildBenchmark) string {
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
 		styles.Success.Render(fmt.Sprintf("%sMin: %.2fs", styles.IconStyle("🕒"), bm.Min)),

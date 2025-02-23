@@ -1,4 +1,4 @@
-package bundle_analysis
+package bundle_analyser
 
 import (
 	"encoding/json"
@@ -15,9 +15,9 @@ import (
 	"time"
 )
 
-type BundleAnalysisBenchmark data.BundleAnalysisBenchmark
+type BundleBenchmark data.BundleBenchmark
 
-func (b *BundleAnalysisBenchmark) calculateBundleSize(app workspace.Application) (*data.BuildStats, error) {
+func (b *BundleBenchmark) calculateBundleSize(app workspace.Application) (*data.BuildStats, error) {
 	stats := data.BuildStats{}
 
 	cwd, err := os.Getwd()
@@ -75,7 +75,7 @@ func (b *BundleAnalysisBenchmark) calculateBundleSize(app workspace.Application)
 	return &stats, nil
 }
 
-func (b *BundleAnalysisBenchmark) WriteStats(appName string, startTime time.Time) error {
+func (b *BundleBenchmark) WriteStats(appName string, startTime time.Time) error {
 	b.AppName = appName
 	b.CreatedAt = time.Now()
 	b.ID = uuid.New().String()
@@ -88,7 +88,7 @@ func (b *BundleAnalysisBenchmark) WriteStats(appName string, startTime time.Time
 	}
 
 	var results []json.RawMessage
-	currentValue, err := os.ReadFile(constants.BundleAnalysisFilePath)
+	currentValue, err := os.ReadFile(constants.BundleAnalyserFilePath)
 
 	if err == nil && len(currentValue) > 0 {
 		if err := json.Unmarshal(currentValue, &results); err != nil {
@@ -110,7 +110,7 @@ func (b *BundleAnalysisBenchmark) WriteStats(appName string, startTime time.Time
 		return err
 	}
 
-	return os.WriteFile(constants.BundleAnalysisFilePath, content, 0644)
+	return os.WriteFile(constants.BundleAnalyserFilePath, content, 0644)
 }
 
 func startBenchmark(apps []workspace.Application, description string) tea.Cmd {
@@ -144,7 +144,7 @@ func startBenchmark(apps []workspace.Application, description string) tea.Cmd {
 		// Run builds sequentially
 		for _, app := range apps {
 			startTime := time.Now()
-			benchmark := BundleAnalysisBenchmark{Description: description}
+			benchmark := BundleBenchmark{Description: description}
 
 			// Send startBenchmark message
 			results <- BuildStartMsg{

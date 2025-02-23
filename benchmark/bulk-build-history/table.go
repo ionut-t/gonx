@@ -41,7 +41,7 @@ func (m tableModel) View() string {
 	return tableStyles.Base.Render(m.table.View())
 }
 
-func createTable(metrics []data.BulkBuildBenchmark, width, height int) tableModel {
+func createTable(metrics []data.BuildBenchmark, width, height int) tableModel {
 	colWidth := (width - 65) / 4
 
 	columns := []table.Column{

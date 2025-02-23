@@ -17,8 +17,8 @@ type Model struct {
 	Search     key.Binding
 	ExitSearch key.Binding
 
-	BundleAnalysisHistory key.Binding
-	BulkAnalysisHistory   key.Binding
+	BundleAnalyserHistory key.Binding
+	BuildAnalyserHistory  key.Binding
 
 	ListView  key.Binding
 	TableView key.Binding
@@ -35,8 +35,8 @@ func (k Model) ShortHelp() []key.Binding {
 		k.ListView,
 		k.TableView,
 		k.JSONView,
-		k.BundleAnalysisHistory,
-		k.BulkAnalysisHistory,
+		k.BundleAnalyserHistory,
+		k.BuildAnalyserHistory,
 		k.Back,
 		k.Quit,
 		k.Help,
@@ -51,8 +51,8 @@ func (k Model) AllBindings() []key.Binding {
 		k.Right,
 		k.Search,
 		k.ExitSearch,
-		k.BundleAnalysisHistory,
-		k.BulkAnalysisHistory,
+		k.BundleAnalyserHistory,
+		k.BuildAnalyserHistory,
 		k.ListView,
 		k.TableView,
 		k.JSONView,

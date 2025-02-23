@@ -13,7 +13,7 @@ import (
 	"os"
 )
 
-func getJsonContent(metrics []data.BulkBuildBenchmark) string {
+func getJsonContent(metrics []data.BuildBenchmark) string {
 	// Convert metrics to pretty JSON
 	jsonData, err := json.MarshalIndent(metrics, "", "  ")
 	if err != nil {
@@ -53,10 +53,10 @@ func getJsonContent(metrics []data.BulkBuildBenchmark) string {
 	return buf.String()
 }
 
-func readAllMetrics() ([]data.BulkBuildBenchmark, error) {
-	var metrics []data.BulkBuildBenchmark
+func readAllMetrics() ([]data.BuildBenchmark, error) {
+	var metrics []data.BuildBenchmark
 
-	_bytes, err := os.ReadFile(constants.BulkBuildFilePath)
+	_bytes, err := os.ReadFile(constants.BuildAnalyserFilePath)
 
 	if err != nil {
 		return nil, err

@@ -126,13 +126,13 @@ func newTasksList(width int) tasksModel {
 	historyHelp := help.New(width, 10)
 
 	historyKeys := keymap.Model{
-		BundleAnalysisHistory: key.NewBinding(
+		BundleAnalyserHistory: key.NewBinding(
 			key.WithKeys("z"),
-			key.WithHelp("z", "bundle analysis history"),
+			key.WithHelp("z", "bundle analyser history"),
 		),
-		BulkAnalysisHistory: key.NewBinding(
+		BuildAnalyserHistory: key.NewBinding(
 			key.WithKeys("x"),
-			key.WithHelp("x", "bulk analysis history"),
+			key.WithHelp("x", "build analyser history"),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("ctrl-q", "ctrl+c"),

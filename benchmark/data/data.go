@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-type BundleAnalysisBenchmark struct {
+type BundleBenchmark struct {
 	ID          string     `json:"id"`
 	AppName     string     `json:"appName"`
 	CreatedAt   time.Time  `json:"createdAt"`
@@ -35,7 +35,7 @@ func (stats *BuildStats) String() string {
 	return utils.PrettyJSON(stats)
 }
 
-type BulkBuildBenchmark struct {
+type BuildBenchmark struct {
 	ID          uuid.UUID `json:"id"`
 	AppName     string    `json:"appName"`
 	CreatedAt   time.Time `json:"createdAt"`

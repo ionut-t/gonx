@@ -1,4 +1,4 @@
-package bulk_build
+package build_analyser
 
 import (
 	"fmt"

@@ -29,7 +29,7 @@ const (
 
 type Model struct {
 	view     view
-	metrics  []data.BulkBuildBenchmark
+	metrics  []data.BuildBenchmark
 	viewport viewport.Model
 	table    tableModel
 	search   input.Model
@@ -45,9 +45,9 @@ func New(width, height int) Model {
 
 	helpMenu := help.New(width, height)
 	helpMenu.CombineWithHistoryKeys(keymap.Model{
-		BundleAnalysisHistory: key.NewBinding(
+		BundleAnalyserHistory: key.NewBinding(
 			key.WithKeys("z"),
-			key.WithHelp("z", "bundle analysis history"),
+			key.WithHelp("z", "bundle analyser history"),
 		),
 	})
 
@@ -191,12 +191,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m Model) getFilteredMetrics() []data.BulkBuildBenchmark {
+func (m Model) getFilteredMetrics() []data.BuildBenchmark {
 	if m.search.Value() == "" {
 		return m.metrics
 	}
 
-	filtered := make([]data.BulkBuildBenchmark, 0)
+	filtered := make([]data.BuildBenchmark, 0)
 	for _, metric := range m.metrics {
 		if strings.Contains(metric.AppName, m.search.Value()) || strings.Contains(metric.Description, m.search.Value()) {
 			filtered = append(filtered, metric)

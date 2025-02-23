@@ -1,4 +1,4 @@
-package bundle_analysis_history
+package bundle_analyser_history
 
 import (
 	"bytes"
@@ -53,10 +53,10 @@ func getJsonContent(model Model) string {
 	return buf.String()
 }
 
-func readAllMetrics() ([]data.BundleAnalysisBenchmark, error) {
-	var metrics []data.BundleAnalysisBenchmark
+func readAllMetrics() ([]data.BundleBenchmark, error) {
+	var metrics []data.BundleBenchmark
 
-	_bytes, err := os.ReadFile(constants.BundleAnalysisFilePath)
+	_bytes, err := os.ReadFile(constants.BundleAnalyserFilePath)
 
 	if err != nil {
 		return nil, err

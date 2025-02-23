@@ -1,4 +1,4 @@
-package bulk_build
+package build_analyser
 
 import (
 	"encoding/json"
@@ -14,9 +14,9 @@ import (
 	"time"
 )
 
-type BulkBuildBenchmark data.BulkBuildBenchmark
+type BuildBenchmark data.BuildBenchmark
 
-func (b *BulkBuildBenchmark) WriteStats() error {
+func (b *BuildBenchmark) WriteStats() error {
 	b.CreatedAt = time.Now()
 
 	benchmark, err := utils.ToJsonString(b)
@@ -26,7 +26,7 @@ func (b *BulkBuildBenchmark) WriteStats() error {
 	}
 
 	var results []json.RawMessage
-	currentValue, err := os.ReadFile(constants.BulkBuildFilePath)
+	currentValue, err := os.ReadFile(constants.BuildAnalyserFilePath)
 
 	if err == nil && len(currentValue) > 0 {
 		if err := json.Unmarshal(currentValue, &results); err != nil {
@@ -48,7 +48,7 @@ func (b *BulkBuildBenchmark) WriteStats() error {
 		return err
 	}
 
-	return os.WriteFile(constants.BulkBuildFilePath, content, 0644)
+	return os.WriteFile(constants.BuildAnalyserFilePath, content, 0644)
 }
 
 func startBenchmark(apps []string, description string, count int) tea.Cmd {
@@ -76,7 +76,7 @@ func startBenchmark(apps []string, description string, count int) tea.Cmd {
 
 			durations := make([]float64, count)
 
-			benchmark := BulkBuildBenchmark{
+			benchmark := BuildBenchmark{
 				ID:          uuid.New(),
 				AppName:     app,
 				Description: description,

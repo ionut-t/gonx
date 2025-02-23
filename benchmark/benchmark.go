@@ -3,10 +3,10 @@ package benchmark
 import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	bulkBuild "github.com/ionut-t/gonx/benchmark/bulk-build"
-	bulkBuildHistory "github.com/ionut-t/gonx/benchmark/bulk-build-history"
-	bundleAnalysis "github.com/ionut-t/gonx/benchmark/bundle-analysis"
-	bundleAnalysisHistory "github.com/ionut-t/gonx/benchmark/bundle-analysis-history"
+	buildAnalyser "github.com/ionut-t/gonx/benchmark/build-analyser"
+	buildAnalyserHistory "github.com/ionut-t/gonx/benchmark/bulk-build-history"
+	bundleAnalyser "github.com/ionut-t/gonx/benchmark/bundle-analyser"
+	bundleAnalyserHistory "github.com/ionut-t/gonx/benchmark/bundle-analyser-history"
 	"github.com/ionut-t/gonx/internal/messages"
 	"github.com/ionut-t/gonx/workspace"
 	"slices"
@@ -33,15 +33,15 @@ type view int
 const (
 	selectTasksView view = iota
 	selectAppsView
-	bundleAnalysisView
-	bulkBuildView
-	bundleAnalysisHistoryView
-	bulkBuildHistoryView
+	bundleAnalyserView
+	buildAnalyserView
+	bundleAnalyserHistoryView
+	buildAnalyserHistoryView
 )
 
 var historyViews = []view{
-	bundleAnalysisHistoryView,
-	bulkBuildHistoryView,
+	bundleAnalyserHistoryView,
+	buildAnalyserHistoryView,
 }
 
 var (
@@ -56,11 +56,11 @@ type Model struct {
 	taskList tasksModel
 	appList  appsModel
 
-	bundleAnalysis            bundleAnalysis.Model
-	bundleAnalysisHistoryView bundleAnalysisHistory.Model
+	bundleAnalysis            bundleAnalyser.Model
+	bundleAnalysisHistoryView bundleAnalyserHistory.Model
 
-	bulkBuild            bulkBuild.Model
-	bulkBuildHistoryView bulkBuildHistory.Model
+	bulkBuild            buildAnalyser.Model
+	bulkBuildHistoryView buildAnalyserHistory.Model
 
 	width  int
 	height int
@@ -93,16 +93,16 @@ func (m Model) View() string {
 	case selectAppsView:
 		return m.appList.View()
 
-	case bundleAnalysisView:
+	case bundleAnalyserView:
 		return viewStyle(m.bundleAnalysis.View())
 
-	case bundleAnalysisHistoryView:
+	case bundleAnalyserHistoryView:
 		return m.bundleAnalysisHistoryView.View()
 
-	case bulkBuildView:
+	case buildAnalyserView:
 		return viewStyle(m.bulkBuild.View())
 
-	case bulkBuildHistoryView:
+	case buildAnalyserHistoryView:
 		return m.bulkBuildHistoryView.View()
 	}
 
@@ -128,14 +128,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "z":
 			if (m.view == selectTasksView || m.isHistoryView()) && !m.bundleAnalysisHistoryView.Searching() {
-				m.view = bundleAnalysisHistoryView
-				m.bundleAnalysisHistoryView = bundleAnalysisHistory.New(m.width, m.height)
+				m.view = bundleAnalyserHistoryView
+				m.bundleAnalysisHistoryView = bundleAnalyserHistory.New(m.width, m.height)
 			}
 
 		case "x":
 			if m.view == selectTasksView || m.isHistoryView() && !m.bundleAnalysisHistoryView.Searching() {
-				m.view = bulkBuildHistoryView
-				m.bulkBuildHistoryView = bulkBuildHistory.New(m.width, m.height)
+				m.view = buildAnalyserHistoryView
+				m.bulkBuildHistoryView = buildAnalyserHistory.New(m.width, m.height)
 			}
 		}
 
@@ -146,16 +146,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case appsSelectedMsg:
 		switch m.taskList.selected {
 		case bundleAnalysisTask:
-			m.view = bundleAnalysisView
-			m.bundleAnalysis = bundleAnalysis.New(msg, m.width, m.height)
+			m.view = bundleAnalyserView
+			m.bundleAnalysis = bundleAnalyser.New(msg, m.width, m.height)
 
 		case bulkBuildTask:
-			m.view = bulkBuildView
+			m.view = buildAnalyserView
 			var apps = make([]string, 0, len(msg))
 			for _, app := range msg {
 				apps = append(apps, app.Name)
 			}
-			m.bulkBuild = bulkBuild.New(apps, m.width, m.height)
+			m.bulkBuild = buildAnalyser.New(apps, m.width, m.height)
 		}
 
 	case messages.NavigateToViewMsg:
@@ -167,7 +167,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if m.view == selectTasksView {
 		bModel, cmd := m.bundleAnalysis.Update(msg)
-		m.bundleAnalysis = bModel.(bundleAnalysis.Model)
+		m.bundleAnalysis = bModel.(bundleAnalyser.Model)
 		cmds = append(cmds, cmd)
 	}
 
@@ -182,24 +182,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.appList = aModel.(appsModel)
 		cmds = append(cmds, cmd)
 
-	case bundleAnalysisView:
+	case bundleAnalyserView:
 		bModel, cmd := m.bundleAnalysis.Update(msg)
-		m.bundleAnalysis = bModel.(bundleAnalysis.Model)
+		m.bundleAnalysis = bModel.(bundleAnalyser.Model)
 		cmds = append(cmds, cmd)
 
-	case bulkBuildView:
+	case buildAnalyserView:
 		bModel, cmd := m.bulkBuild.Update(msg)
-		m.bulkBuild = bModel.(bulkBuild.Model)
+		m.bulkBuild = bModel.(buildAnalyser.Model)
 		cmds = append(cmds, cmd)
 
-	case bundleAnalysisHistoryView:
+	case bundleAnalyserHistoryView:
 		bModel, cmd := m.bundleAnalysisHistoryView.Update(msg)
-		m.bundleAnalysisHistoryView = bModel.(bundleAnalysisHistory.Model)
+		m.bundleAnalysisHistoryView = bModel.(bundleAnalyserHistory.Model)
 		cmds = append(cmds, cmd)
 
-	case bulkBuildHistoryView:
+	case buildAnalyserHistoryView:
 		bModel, cmd := m.bulkBuildHistoryView.Update(msg)
-		m.bulkBuildHistoryView = bModel.(bulkBuildHistory.Model)
+		m.bulkBuildHistoryView = bModel.(buildAnalyserHistory.Model)
 		cmds = append(cmds, cmd)
 	}
 
