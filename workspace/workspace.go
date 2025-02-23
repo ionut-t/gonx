@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/ionut-t/gonx/utils"
@@ -47,6 +48,10 @@ func getAllApps() ([]Application, []Library, []E2EApp, error) {
 
 	outputStr := string(output)
 	rawApps := strings.Split(strings.TrimSpace(outputStr), "\n")
+
+	slices.SortStableFunc(rawApps, func(a, b string) int {
+		return strings.Compare(a, b)
+	})
 
 	apps, libs, e2eApps := parseApps(rawApps)
 
