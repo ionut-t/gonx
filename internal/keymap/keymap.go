@@ -5,6 +5,81 @@ import (
 	"reflect"
 )
 
+var Up = key.NewBinding(
+	key.WithKeys("up", "k"),
+	key.WithHelp("↑/k", "up"),
+)
+
+var Down = key.NewBinding(
+	key.WithKeys("down", "j"),
+	key.WithHelp("↓/j", "down"),
+)
+
+var Left = key.NewBinding(
+	key.WithKeys("left", "h"),
+	key.WithHelp("←/h", "left"),
+)
+
+var Right = key.NewBinding(
+	key.WithKeys("right", "l"),
+	key.WithHelp("→/l", "right"),
+)
+
+var Select = key.NewBinding(
+	key.WithKeys("enter"),
+	key.WithHelp("enter", "select option"),
+)
+
+var Back = key.NewBinding(
+	key.WithKeys("esc"),
+	key.WithHelp("esc", "back"),
+)
+
+var Quit = key.NewBinding(
+	key.WithKeys("ctrl+q", "ctrl+c"),
+	key.WithHelp("ctrl+(q/c)", "quit"),
+)
+
+var Help = key.NewBinding(
+	key.WithKeys("?"),
+	key.WithHelp("?", "help"),
+)
+
+var Search = key.NewBinding(
+	key.WithKeys("/"),
+	key.WithHelp("/", "search"),
+)
+
+var ExitSearch = key.NewBinding(
+	key.WithKeys("esc"),
+	key.WithHelp("esc", "exit search"),
+)
+
+var BundleAnalyserHistory = key.NewBinding(
+	key.WithKeys("z"),
+	key.WithHelp("z", "bundle analyser history"),
+)
+
+var BuildAnalyserHistory = key.NewBinding(
+	key.WithKeys("x"),
+	key.WithHelp("x", "build analyser history"),
+)
+
+var ListView = key.NewBinding(
+	key.WithKeys("1"),
+	key.WithHelp("1", "list"),
+)
+
+var TableView = key.NewBinding(
+	key.WithKeys("2"),
+	key.WithHelp("2", "table"),
+)
+
+var JSONView = key.NewBinding(
+	key.WithKeys("3"),
+	key.WithHelp("3", "json"),
+)
+
 type Model struct {
 	Up         key.Binding
 	Down       key.Binding
@@ -111,83 +186,32 @@ func ReplaceBindings(bindings []key.Binding, newBindings []key.Binding) []key.Bi
 }
 
 var DefaultKeyMap = Model{
-	Up: key.NewBinding(
-		key.WithKeys("up", "k"),
-		key.WithHelp("↑/k", "up"),
-	),
-	Down: key.NewBinding(
-		key.WithKeys("down", "j"),
-		key.WithHelp("↓/j", "down"),
-	),
-	Left: key.NewBinding(
-		key.WithKeys("left", "h"),
-		key.WithHelp("←/h", "left"),
-	),
-	Right: key.NewBinding(
-		key.WithKeys("right", "l"),
-		key.WithHelp("→/l", "right"),
-	),
-	Search: key.NewBinding(
-		key.WithKeys("/"),
-		key.WithHelp("/", "search"),
-	),
-	Back: key.NewBinding(
-		key.WithKeys("esc"),
-		key.WithHelp("esc", "back"),
-	),
-	Help: key.NewBinding(
-		key.WithKeys("?"),
-		key.WithHelp("?", "help"),
-	),
-	Quit: key.NewBinding(
-		key.WithKeys("ctrl+q", "ctrl+c"),
-		key.WithHelp("ctrl+(q/c)", "quit"),
-	),
+	Up:     Up,
+	Down:   Down,
+	Left:   Left,
+	Right:  Right,
+	Search: Search,
+	Back:   Back,
+	Help:   Help,
+	Quit:   Quit,
 }
 
 var historyKeyMap = Model{
-	Search: key.NewBinding(
-		key.WithKeys("/"),
-		key.WithHelp("/", "search"),
-	),
-	ListView: key.NewBinding(
-		key.WithKeys("1"),
-		key.WithHelp("1", "list"),
-	),
-	TableView: key.NewBinding(
-		key.WithKeys("2"),
-		key.WithHelp("2", "table"),
-	),
-	JSONView: key.NewBinding(
-		key.WithKeys("3"),
-		key.WithHelp("3", "json"),
-	),
+	Search:    Search,
+	ListView:  ListView,
+	TableView: TableView,
+	JSONView:  JSONView,
 }
 
 var HistoryKeyMap = CombineKeys(DefaultKeyMap, historyKeyMap)
 
 var SearchKeyMap = Model{
-	ExitSearch: key.NewBinding(
-		key.WithKeys("esc"),
-		key.WithHelp("esc", "exit search"),
-	),
-	Quit: key.NewBinding(
-		key.WithKeys("ctrl+q", "ctrl+c"),
-		key.WithHelp("ctrl+(q/c)", "quit"),
-	),
+	ExitSearch: ExitSearch,
+	Quit:       Quit,
 }
 
 var ListKeyMap = Model{
-	Up: key.NewBinding(
-		key.WithKeys("up", "k"),
-		key.WithHelp("↑/k", "up"),
-	),
-	Down: key.NewBinding(
-		key.WithKeys("down", "j"),
-		key.WithHelp("↓/j", "down"),
-	),
-	Select: key.NewBinding(
-		key.WithKeys("enter"),
-		key.WithHelp("enter", "select option"),
-	),
+	Up:     Up,
+	Down:   Down,
+	Select: Select,
 }

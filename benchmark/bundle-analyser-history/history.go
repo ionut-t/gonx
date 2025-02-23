@@ -1,6 +1,7 @@
 package bundle_analyser_history
 
 import (
+	"errors"
 	"fmt"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -12,6 +13,7 @@ import (
 	"github.com/ionut-t/gonx/ui/input"
 	"github.com/ionut-t/gonx/ui/styles"
 	"github.com/ionut-t/gonx/ui/viewport"
+	"os"
 	"strings"
 )
 
@@ -43,13 +45,23 @@ type Model struct {
 func New(width, height int) Model {
 	metrics, err := readAllMetrics()
 
+	if err == nil && len(metrics) == 0 {
+		err = os.ErrNotExist
+	}
+
 	helpMenu := help.New(width, height)
-	helpMenu.CombineWithHistoryKeys(keymap.Model{
-		BuildAnalyserHistory: key.NewBinding(
-			key.WithKeys("x"),
-			key.WithHelp("x", "build analyser history"),
-		),
-	})
+
+	if err != nil {
+		helpMenu.SetKeyMap(keymap.Model{
+			BuildAnalyserHistory: keymap.BuildAnalyserHistory,
+			Back:                 keymap.Back,
+			Quit:                 keymap.Quit,
+		})
+	} else {
+		helpMenu.CombineWithHistoryKeys(keymap.Model{
+			BuildAnalyserHistory: keymap.BuildAnalyserHistory,
+		})
+	}
 
 	model := Model{
 		view:    listView,
@@ -83,6 +95,18 @@ func (m Model) Init() tea.Cmd {
 
 func (m Model) View() string {
 	if m.error != nil {
+		if errors.Is(m.error, os.ErrNotExist) {
+			return lipgloss.JoinVertical(
+				lipgloss.Top,
+				styles.Header("", title),
+				lipgloss.NewStyle().Padding(1, 1).Render(
+					styles.Warning.Render("You don't have any metrics recorded yet."),
+				),
+				"\n",
+				m.help.View(),
+			)
+		}
+
 		return fmt.Sprintf("Error reading metrics: %s", m.error)
 	}
 

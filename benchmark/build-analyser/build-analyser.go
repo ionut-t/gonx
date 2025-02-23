@@ -70,7 +70,7 @@ func (m Model) View() string {
 	case resultsView:
 		return lipgloss.JoinVertical(
 			lipgloss.Left,
-			styles.Header(resultTitle),
+			styles.Header("", resultTitle),
 			m.viewport.View(),
 		)
 	}

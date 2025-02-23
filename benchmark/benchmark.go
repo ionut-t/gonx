@@ -4,7 +4,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	buildAnalyser "github.com/ionut-t/gonx/benchmark/build-analyser"
-	buildAnalyserHistory "github.com/ionut-t/gonx/benchmark/bulk-build-history"
+	buildAnalyserHistory "github.com/ionut-t/gonx/benchmark/build-analyser-history"
 	bundleAnalyser "github.com/ionut-t/gonx/benchmark/bundle-analyser"
 	bundleAnalyserHistory "github.com/ionut-t/gonx/benchmark/bundle-analyser-history"
 	"github.com/ionut-t/gonx/internal/messages"

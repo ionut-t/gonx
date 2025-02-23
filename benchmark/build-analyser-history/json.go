@@ -1,4 +1,4 @@
-package bulk_build_history
+package build_analyser_history
 
 import (
 	"bytes"

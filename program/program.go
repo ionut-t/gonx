@@ -1,14 +1,17 @@
 package program
 
 import (
+	"errors"
 	"fmt"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/ionut-t/gonx/benchmark"
+	"github.com/ionut-t/gonx/ui/styles"
 	"github.com/ionut-t/gonx/ui/suspense"
 	"github.com/ionut-t/gonx/workspace"
 	"os"
+	"strings"
 )
 
 type view int
@@ -23,6 +26,8 @@ type Model struct {
 	suspense  suspense.Model
 	workspace workspace.Workspace
 	benchmark benchmark.Model
+
+	error error
 
 	width  int
 	height int
@@ -43,6 +48,18 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) View() string {
+	if m.error != nil {
+		err := m.error.Error()
+
+		withPadding := lipgloss.NewStyle().Padding(1, 1)
+
+		return lipgloss.JoinVertical(
+			lipgloss.Left,
+			withPadding.Render(styles.Error.Render(strings.ToUpper(err[:1])+err[1:]+".")),
+			withPadding.Render(styles.DimText.Render("Press ctrl+c to exit.")),
+		)
+	}
+
 	switch m.view {
 	case suspenseView:
 		return lipgloss.NewStyle().Padding(1, 1).Render(m.suspense.View())
@@ -75,11 +92,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Height:    m.height,
 		})
 
-		//actionModel, cmd := m.selectAction.Update(msg)
-		//m.selectAction = actionModel.(selectActionModel)
-		//
-		//cmds = append(cmds, cmd)
-		//return m, tea.Batch(cmds...)
+	case workspace.ErrMsg:
+		m.suspense.Loading = false
+		m.error = errors.New("no Nx workspace found. Please run this command in the root of your Nx workspace")
+		return m, nil
 
 	case spinner.TickMsg:
 		if m.suspense.Loading {
