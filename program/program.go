@@ -24,7 +24,7 @@ const (
 type Model struct {
 	view      view
 	suspense  suspense.Model
-	workspace workspace.Workspace
+	workspace workspace.Model
 	benchmark benchmark.Model
 
 	error error
@@ -36,7 +36,7 @@ type Model struct {
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		func() tea.Msg {
-			ws, err := workspace.NewWorkspace()
+			ws, err := workspace.New()
 			if err != nil {
 				return workspace.ErrMsg{Err: err}
 			}

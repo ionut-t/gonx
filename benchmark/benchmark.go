@@ -51,7 +51,7 @@ var (
 type Model struct {
 	view view
 
-	workspace workspace.Workspace
+	workspace workspace.Model
 
 	taskList tasksModel
 	appList  appsModel
@@ -67,7 +67,7 @@ type Model struct {
 }
 
 type Options struct {
-	Workspace workspace.Workspace
+	Workspace workspace.Model
 	Width     int
 	Height    int
 }

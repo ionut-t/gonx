@@ -12,14 +12,14 @@ import (
 	"github.com/ionut-t/gonx/utils"
 )
 
-type Workspace struct {
+type Model struct {
 	Name         string        `json:"name"`
 	Applications []Application `json:"applications"`
 	Libraries    []Library     `json:"libraries"`
 	E2EApps      []E2EApp      `json:"e2eApps"`
 }
 
-func (w *Workspace) String() string {
+func (w *Model) String() string {
 	return utils.PrettyJSON(w)
 }
 
@@ -107,21 +107,21 @@ func parseApps(allApps []string) ([]Application, []Library, []E2EApp) {
 }
 
 type DoneMsg struct {
-	Workspace Workspace
+	Workspace Model
 }
 
 type ErrMsg struct {
 	Err error
 }
 
-func NewWorkspace() (*Workspace, error) {
+func New() (*Model, error) {
 	cwd, err := os.Getwd()
 
 	if err != nil {
 		return nil, err
 	}
 
-	workspace := Workspace{
+	workspace := Model{
 		Name: filepath.Base(cwd),
 	}
 
