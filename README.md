@@ -6,6 +6,7 @@ A terminal user interface for managing Nx workspaces.
 
 - Bundle analyser
 - Build analyser
+- Lint analyser
 
 ## Installation
 
