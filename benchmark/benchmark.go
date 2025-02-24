@@ -8,6 +8,7 @@ import (
 	bundleAnalyser "github.com/ionut-t/gonx/benchmark/bundle-analyser"
 	bundleAnalyserHistory "github.com/ionut-t/gonx/benchmark/bundle-analyser-history"
 	lintAnalyser "github.com/ionut-t/gonx/benchmark/lint-analyser"
+	lintAnalyserHistory "github.com/ionut-t/gonx/benchmark/lint-analyser-history"
 	"github.com/ionut-t/gonx/internal/messages"
 	"github.com/ionut-t/gonx/workspace"
 	"slices"
@@ -39,11 +40,13 @@ const (
 	bundleAnalyserHistoryView
 	buildAnalyserHistoryView
 	lintAnalyserView
+	lintAnalyserHistoryView
 )
 
 var historyViews = []view{
 	bundleAnalyserHistoryView,
 	buildAnalyserHistoryView,
+	lintAnalyserHistoryView,
 }
 
 var (
@@ -64,7 +67,8 @@ type Model struct {
 	buildAnalyser            buildAnalyser.Model
 	buildAnalyserHistoryView buildAnalyserHistory.Model
 
-	lintAnalyser lintAnalyser.Model
+	lintAnalyser        lintAnalyser.Model
+	lintAnalyserHistory lintAnalyserHistory.Model
 
 	width  int
 	height int
@@ -111,6 +115,9 @@ func (m Model) View() string {
 
 	case lintAnalyserView:
 		return viewStyle(m.lintAnalyser.View())
+
+	case lintAnalyserHistoryView:
+		return m.lintAnalyserHistory.View()
 	}
 
 	return ""
@@ -143,6 +150,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.view == selectTasksView || m.isHistoryView() && !m.bundleAnalyserHistoryView.Searching() {
 				m.view = buildAnalyserHistoryView
 				m.buildAnalyserHistoryView = buildAnalyserHistory.New(m.width, m.height)
+			}
+
+		case "c":
+			if m.view == selectTasksView || m.isHistoryView() && !m.bundleAnalyserHistoryView.Searching() {
+				m.view = lintAnalyserHistoryView
+				m.lintAnalyserHistory = lintAnalyserHistory.New(m.width, m.height)
 			}
 		}
 
@@ -235,6 +248,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case lintAnalyserView:
 		lModel, cmd := m.lintAnalyser.Update(msg)
 		m.lintAnalyser = lModel.(lintAnalyser.Model)
+		cmds = append(cmds, cmd)
+
+	case lintAnalyserHistoryView:
+		lModel, cmd := m.lintAnalyserHistory.Update(msg)
+		m.lintAnalyserHistory = lModel.(lintAnalyserHistory.Model)
 		cmds = append(cmds, cmd)
 	}
 

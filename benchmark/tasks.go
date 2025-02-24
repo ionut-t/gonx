@@ -118,31 +118,42 @@ func newTasksList(width, height int) tasksModel {
 	}
 
 	tasksList.SetWidth(width)
-
+	
 	listHelp := help.New(width, 10)
 
-	listHelp.SetKeyMap(keymap.ListKeyMap)
+	listHelp.SetKeyMap(keymap.CombineKeys(keymap.ListKeyMap, keymap.Model{
+		Quit: keymap.Quit,
+	}))
 
-	historyHelp := help.New(width, 10)
+	historyKeys := lipgloss.JoinVertical(
+		lipgloss.Left,
+		lipgloss.NewStyle().
+			Padding(0, 1).
+			Render(
+				fmt.Sprintf("%s %s",
+					styles.Subtext0.Render(keymap.BundleAnalyserHistory.Help().Key),
+					styles.Overlay1.Render(keymap.BundleAnalyserHistory.Help().Desc),
+				),
+			),
+		lipgloss.NewStyle().
+			Padding(0, 1).
+			Render(
+				fmt.Sprintf("%s %s",
+					styles.Subtext0.Render(keymap.BuildAnalyserHistory.Help().Key),
+					styles.Overlay1.Render(keymap.BuildAnalyserHistory.Help().Desc),
+				),
+			),
+		lipgloss.NewStyle().
+			Padding(0, 1).
+			Render(
+				fmt.Sprintf("%s %s",
+					styles.Subtext0.Render(keymap.LintAnalyserHistory.Help().Key),
+					styles.Overlay1.Render(keymap.LintAnalyserHistory.Help().Desc),
+				),
+			),
+	)
 
-	historyKeys := keymap.Model{
-		BundleAnalyserHistory: key.NewBinding(
-			key.WithKeys("z"),
-			key.WithHelp("z", "bundle analyser history"),
-		),
-		BuildAnalyserHistory: key.NewBinding(
-			key.WithKeys("x"),
-			key.WithHelp("x", "build analyser history"),
-		),
-		Quit: key.NewBinding(
-			key.WithKeys("ctrl-q", "ctrl+c"),
-			key.WithHelp("ctrl-(q/c)", "quit"),
-		),
-	}
-
-	historyHelp.SetKeyMap(historyKeys)
-
-	helpView := helpStyle.Render(listHelp.View() + "\n\n" + historyHelp.View())
+	helpView := helpStyle.Render(listHelp.View() + "\n\n" + historyKeys)
 
 	tasksList.SetHeight(height - lipgloss.Height(helpView))
 

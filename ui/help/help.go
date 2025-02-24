@@ -118,14 +118,14 @@ func (m Model) renderFullHelpView() string {
 		}
 
 		enabledBindings = append(enabledBindings, binding)
-		renderedWidth := lipgloss.Width(styles.Teal.Render(binding.Help().Key))
+		renderedWidth := lipgloss.Width(styles.Subtext1.Render(binding.Help().Key))
 		maxKeyWidth = max(maxKeyWidth, renderedWidth)
 	}
 
 	for _, binding := range enabledBindings {
 		keyText := binding.Help().Key
-		renderedKey := styles.Teal.Render(keyText)
-		renderedDescription := styles.Subtext1.Render(binding.Help().Desc)
+		renderedKey := styles.Subtext1.Render(keyText)
+		renderedDescription := styles.Overlay1.Render(binding.Help().Desc)
 		currentWidth := lipgloss.Width(renderedKey)
 		padding := strings.Repeat(" ", maxKeyWidth-currentWidth+2)
 

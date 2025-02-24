@@ -1,12 +1,14 @@
-package bundle_analyser_history
+package lint_analyser_history
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	data "github.com/ionut-t/gonx/benchmark/data"
+	"github.com/ionut-t/gonx/internal/constants"
 	"github.com/ionut-t/gonx/internal/keymap"
 	"github.com/ionut-t/gonx/internal/messages"
 	"github.com/ionut-t/gonx/ui/help"
@@ -19,7 +21,7 @@ import (
 
 const padding = 2
 
-const title = "📊 Bundle Analyser History"
+const title = "📊 Lint Analyser History"
 
 type view int
 
@@ -31,7 +33,7 @@ const (
 
 type Model struct {
 	view     view
-	metrics  []data.BundleBenchmark
+	metrics  []data.LintBenchmark
 	viewport viewport.Model
 	table    tableModel
 	search   input.Model
@@ -53,16 +55,16 @@ func New(width, height int) Model {
 
 	if err != nil {
 		helpMenu.SetKeyMap(keymap.Model{
-			BuildAnalyserHistory: keymap.BuildAnalyserHistory,
-			LintAnalyserHistory:  keymap.LintAnalyserHistory,
-			Back:                 keymap.Back,
-			Quit:                 keymap.Quit,
-			Help:                 keymap.Help,
+			BundleAnalyserHistory: keymap.BundleAnalyserHistory,
+			BuildAnalyserHistory:  keymap.BuildAnalyserHistory,
+			Back:                  keymap.Back,
+			Quit:                  keymap.Quit,
+			Help:                  keymap.Help,
 		})
 	} else {
 		helpMenu.CombineWithHistoryKeys(keymap.Model{
-			BuildAnalyserHistory: keymap.BuildAnalyserHistory,
-			LintAnalyserHistory:  keymap.LintAnalyserHistory,
+			BundleAnalyserHistory: keymap.BundleAnalyserHistory,
+			BuildAnalyserHistory:  keymap.BuildAnalyserHistory,
 		})
 	}
 
@@ -172,7 +174,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.help.Keys.JSONView):
 			if !m.search.Focused() {
 				m.view = jsonView
-				m.viewport.SetContent(getJsonContent(m))
+				m.viewport.SetContent(getJsonContent(m.getFilteredMetrics()))
 			}
 
 		case key.Matches(msg, m.help.Keys.Search):
@@ -192,9 +194,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case listView:
 			m.viewport.SetContent(getListContent(m))
 		case tableView:
-			m.table = createTable(m.getFilteredMetrics(), m.width, m.height-lipgloss.Height(styles.SimpleHeader(m.search.View(), title))-lipgloss.Height(m.help.View()))
+			m.table = createTable(m.getFilteredMetrics(), m.width, m.height-lipgloss.Height(m.search.View())-lipgloss.Height(m.help.View()))
 		case jsonView:
-			m.viewport.SetContent(getJsonContent(m))
+			m.viewport.SetContent(getJsonContent(m.getFilteredMetrics()))
 		}
 
 		return m, nil
@@ -218,14 +220,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m Model) getFilteredMetrics() []data.BundleBenchmark {
+func readAllMetrics() ([]data.LintBenchmark, error) {
+	var metrics []data.LintBenchmark
+
+	_bytes, err := os.ReadFile(constants.LintAnalyserFilePath)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := json.Unmarshal(_bytes, &metrics); err != nil {
+		return nil, err
+	}
+
+	return metrics, nil
+}
+
+func (m Model) getFilteredMetrics() []data.LintBenchmark {
 	if m.search.Value() == "" {
 		return m.metrics
 	}
 
-	filtered := make([]data.BundleBenchmark, 0)
+	filtered := make([]data.LintBenchmark, 0)
 	for _, metric := range m.metrics {
-		if strings.Contains(metric.AppName, m.search.Value()) || strings.Contains(metric.Description, m.search.Value()) {
+		if strings.Contains(metric.Project, m.search.Value()) || strings.Contains(metric.Description, m.search.Value()) {
 			filtered = append(filtered, metric)
 		}
 	}

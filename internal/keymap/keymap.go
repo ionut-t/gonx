@@ -65,6 +65,11 @@ var BuildAnalyserHistory = key.NewBinding(
 	key.WithHelp("x", "build analyser history"),
 )
 
+var LintAnalyserHistory = key.NewBinding(
+	key.WithKeys("c"),
+	key.WithHelp("c", "lint analyser history"),
+)
+
 var ListView = key.NewBinding(
 	key.WithKeys("1"),
 	key.WithHelp("1", "list"),
@@ -94,6 +99,7 @@ type Model struct {
 
 	BundleAnalyserHistory key.Binding
 	BuildAnalyserHistory  key.Binding
+	LintAnalyserHistory   key.Binding
 
 	ListView  key.Binding
 	TableView key.Binding
@@ -110,8 +116,6 @@ func (k Model) ShortHelp() []key.Binding {
 		k.ListView,
 		k.TableView,
 		k.JSONView,
-		k.BundleAnalyserHistory,
-		k.BuildAnalyserHistory,
 		k.Back,
 		k.Quit,
 		k.Help,
@@ -128,6 +132,7 @@ func (k Model) AllBindings() []key.Binding {
 		k.ExitSearch,
 		k.BundleAnalyserHistory,
 		k.BuildAnalyserHistory,
+		k.LintAnalyserHistory,
 		k.ListView,
 		k.TableView,
 		k.JSONView,
@@ -140,6 +145,7 @@ func (k Model) AllBindings() []key.Binding {
 func (k Model) FullHelp() [][]key.Binding {
 	return [][]key.Binding{}
 }
+
 func CombineKeys(a, b Model) Model {
 	result := Model{}
 
@@ -172,14 +178,6 @@ func ReplaceBinding(bindings []key.Binding, newBinding key.Binding) []key.Bindin
 		if binding.Help().Key == newBinding.Help().Key {
 			bindings[i] = newBinding
 		}
-	}
-
-	return bindings
-}
-
-func ReplaceBindings(bindings []key.Binding, newBindings []key.Binding) []key.Binding {
-	for _, newBinding := range newBindings {
-		bindings = ReplaceBinding(bindings, newBinding)
 	}
 
 	return bindings

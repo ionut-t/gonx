@@ -54,12 +54,15 @@ func New(width, height int) Model {
 	if err != nil {
 		helpMenu.SetKeyMap(keymap.Model{
 			BundleAnalyserHistory: keymap.BundleAnalyserHistory,
+			LintAnalyserHistory:   keymap.LintAnalyserHistory,
 			Back:                  keymap.Back,
 			Quit:                  keymap.Quit,
+			Help:                  keymap.Help,
 		})
 	} else {
 		helpMenu.CombineWithHistoryKeys(keymap.Model{
 			BundleAnalyserHistory: keymap.BundleAnalyserHistory,
+			LintAnalyserHistory:   keymap.LintAnalyserHistory,
 		})
 	}
 
