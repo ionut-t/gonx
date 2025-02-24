@@ -1,6 +1,7 @@
 package benchmark
 
 import (
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	buildAnalyser "github.com/ionut-t/gonx/benchmark/build-analyser"
@@ -9,6 +10,9 @@ import (
 	bundleAnalyserHistory "github.com/ionut-t/gonx/benchmark/bundle-analyser-history"
 	lintAnalyser "github.com/ionut-t/gonx/benchmark/lint-analyser"
 	lintAnalyserHistory "github.com/ionut-t/gonx/benchmark/lint-analyser-history"
+	testsAnalyser "github.com/ionut-t/gonx/benchmark/tests-analyser"
+	testsAnalyserHistory "github.com/ionut-t/gonx/benchmark/tests-analyser-history"
+	"github.com/ionut-t/gonx/internal/keymap"
 	"github.com/ionut-t/gonx/internal/messages"
 	"github.com/ionut-t/gonx/workspace"
 	"slices"
@@ -41,12 +45,15 @@ const (
 	buildAnalyserHistoryView
 	lintAnalyserView
 	lintAnalyserHistoryView
+	testsAnalyserView
+	testsAnalyserHistoryView
 )
 
 var historyViews = []view{
 	bundleAnalyserHistoryView,
 	buildAnalyserHistoryView,
 	lintAnalyserHistoryView,
+	testsAnalyserHistoryView,
 }
 
 var (
@@ -69,6 +76,9 @@ type Model struct {
 
 	lintAnalyser        lintAnalyser.Model
 	lintAnalyserHistory lintAnalyserHistory.Model
+
+	testsAnalyser        testsAnalyser.Model
+	testsAnalyserHistory testsAnalyserHistory.Model
 
 	width  int
 	height int
@@ -118,6 +128,12 @@ func (m Model) View() string {
 
 	case lintAnalyserHistoryView:
 		return m.lintAnalyserHistory.View()
+
+	case testsAnalyserView:
+		return viewStyle(m.testsAnalyser.View())
+
+	case testsAnalyserHistoryView:
+		return viewStyle(m.testsAnalyserHistory.View())
 	}
 
 	return ""
@@ -134,28 +150,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 
 	case tea.KeyMsg:
-		keyMsg := msg.String()
-		switch keyMsg {
-
-		case "ctrl+q", "ctrl+c":
+		switch {
+		case key.Matches(msg, keymap.Quit):
 			return m, tea.Quit
 
-		case "z":
+		case key.Matches(msg, keymap.BuildAnalyserHistory):
 			if (m.view == selectTasksView || m.isHistoryView()) && !m.bundleAnalyserHistoryView.Searching() {
 				m.view = bundleAnalyserHistoryView
 				m.bundleAnalyserHistoryView = bundleAnalyserHistory.New(m.width, m.height)
 			}
 
-		case "x":
-			if m.view == selectTasksView || m.isHistoryView() && !m.bundleAnalyserHistoryView.Searching() {
+		case key.Matches(msg, keymap.BuildAnalyserHistory):
+			if m.view == selectTasksView || m.isHistoryView() && !m.buildAnalyserHistoryView.Searching() {
 				m.view = buildAnalyserHistoryView
 				m.buildAnalyserHistoryView = buildAnalyserHistory.New(m.width, m.height)
 			}
 
-		case "c":
-			if m.view == selectTasksView || m.isHistoryView() && !m.bundleAnalyserHistoryView.Searching() {
+		case key.Matches(msg, keymap.LintAnalyserHistory):
+			if m.view == selectTasksView || m.isHistoryView() && !m.lintAnalyserHistory.Searching() {
 				m.view = lintAnalyserHistoryView
 				m.lintAnalyserHistory = lintAnalyserHistory.New(m.width, m.height)
+			}
+
+		case key.Matches(msg, keymap.TestsAnalyserHistory):
+			if m.view == selectTasksView || m.isHistoryView() && !m.testsAnalyserHistory.Searching() {
+				m.view = testsAnalyserHistoryView
+				m.testsAnalyserHistory = testsAnalyserHistory.New(m.width, m.height)
 			}
 		}
 
@@ -164,7 +184,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		includedTypes := []workspace.ProjectType{workspace.ApplicationType}
 
-		if m.taskList.selected == lintAnalyserTask {
+		if m.taskList.selected == lintAnalyserTask || m.taskList.selected == testsAnalyserTask {
 			includedTypes = append(includedTypes, workspace.LibraryType)
 		}
 
@@ -172,7 +192,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			width:       m.width,
 			height:      m.height,
 			projects:    m.workspace.GetProjects(includedTypes),
-			displayType: m.taskList.selected == lintAnalyserTask,
+			displayType: m.taskList.selected == lintAnalyserTask || m.taskList.selected == testsAnalyserTask,
 		}
 
 		m.projectsList = newSelectionList(options)
@@ -199,6 +219,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case lintAnalyserTask:
 			m.view = lintAnalyserView
 			m.lintAnalyser = lintAnalyser.New(msg, m.width, m.height)
+
+		case testsAnalyserTask:
+			m.view = testsAnalyserView
+			m.testsAnalyser = testsAnalyser.New(msg, m.width, m.height)
 		}
 
 	case messages.NavigateToViewMsg:
@@ -253,6 +277,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case lintAnalyserHistoryView:
 		lModel, cmd := m.lintAnalyserHistory.Update(msg)
 		m.lintAnalyserHistory = lModel.(lintAnalyserHistory.Model)
+		cmds = append(cmds, cmd)
+
+	case testsAnalyserView:
+		tModel, cmd := m.testsAnalyser.Update(msg)
+		m.testsAnalyser = tModel.(testsAnalyser.Model)
+		cmds = append(cmds, cmd)
+
+	case testsAnalyserHistoryView:
+		tModel, cmd := m.testsAnalyserHistory.Update(msg)
+		m.testsAnalyserHistory = tModel.(testsAnalyserHistory.Model)
 		cmds = append(cmds, cmd)
 	}
 

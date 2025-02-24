@@ -70,6 +70,11 @@ var LintAnalyserHistory = key.NewBinding(
 	key.WithHelp("c", "lint analyser history"),
 )
 
+var TestsAnalyserHistory = key.NewBinding(
+	key.WithKeys("v"),
+	key.WithHelp("v", "tests analyser history"),
+)
+
 var ListView = key.NewBinding(
 	key.WithKeys("1"),
 	key.WithHelp("1", "list"),
@@ -100,6 +105,7 @@ type Model struct {
 	BundleAnalyserHistory key.Binding
 	BuildAnalyserHistory  key.Binding
 	LintAnalyserHistory   key.Binding
+	TestsAnalyserHistory  key.Binding
 
 	ListView  key.Binding
 	TableView key.Binding
@@ -133,6 +139,7 @@ func (k Model) AllBindings() []key.Binding {
 		k.BundleAnalyserHistory,
 		k.BuildAnalyserHistory,
 		k.LintAnalyserHistory,
+		k.TestsAnalyserHistory,
 		k.ListView,
 		k.TableView,
 		k.JSONView,

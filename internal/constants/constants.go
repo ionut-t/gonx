@@ -11,4 +11,7 @@ const (
 
 	LintAnalyserFile     = "lint-benchmarks.json"
 	LintAnalyserFilePath = BenchmarkFolderPath + "/" + LintAnalyserFile
+
+	TestAnalyserFile     = "test-benchmarks.json"
+	TestAnalyserFilePath = BenchmarkFolderPath + "/" + TestAnalyserFile
 )

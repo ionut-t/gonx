@@ -1,12 +1,13 @@
 # GONX
 
-A terminal user interface for managing Nx workspaces.
+A terminal user interface for analysing Nx workspaces.
 
 ## Features
 
 - Bundle analyser
 - Build analyser
 - Lint analyser
+- Tests analyser
 
 ## Installation
 

@@ -60,3 +60,16 @@ type LintBenchmark struct {
 	Average     float64               `json:"avg"`
 	TotalRuns   int                   `json:"totalRuns"`
 }
+
+type TestBenchmark struct {
+	ID          uuid.UUID             `json:"id"`
+	Project     string                `json:"project"`
+	Type        workspace.ProjectType `json:"type"`
+	CreatedAt   time.Time             `json:"createdAt"`
+	Duration    float64               `json:"duration"`
+	Description string                `json:"description"`
+	Min         float64               `json:"min"`
+	Max         float64               `json:"max"`
+	Average     float64               `json:"avg"`
+	TotalRuns   int                   `json:"totalRuns"`
+}

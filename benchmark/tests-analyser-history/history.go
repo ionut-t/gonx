@@ -1,12 +1,14 @@
-package build_analyser_history
+package tests_analyser_history
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	data "github.com/ionut-t/gonx/benchmark/data"
+	"github.com/ionut-t/gonx/internal/constants"
 	"github.com/ionut-t/gonx/internal/keymap"
 	"github.com/ionut-t/gonx/internal/messages"
 	"github.com/ionut-t/gonx/ui/help"
@@ -19,7 +21,7 @@ import (
 
 const padding = 2
 
-const title = "📊 Build Analyser History"
+const title = "📊 Tests Analyser History"
 
 type view int
 
@@ -31,7 +33,7 @@ const (
 
 type Model struct {
 	view     view
-	metrics  []data.BuildBenchmark
+	metrics  []data.TestBenchmark
 	viewport viewport.Model
 	table    tableModel
 	search   input.Model
@@ -54,8 +56,8 @@ func New(width, height int) Model {
 	if err != nil {
 		helpMenu.SetKeyMap(keymap.Model{
 			BundleAnalyserHistory: keymap.BundleAnalyserHistory,
+			BuildAnalyserHistory:  keymap.BuildAnalyserHistory,
 			LintAnalyserHistory:   keymap.LintAnalyserHistory,
-			TestsAnalyserHistory:  keymap.TestsAnalyserHistory,
 			Back:                  keymap.Back,
 			Quit:                  keymap.Quit,
 			Help:                  keymap.Help,
@@ -63,8 +65,8 @@ func New(width, height int) Model {
 	} else {
 		helpMenu.CombineWithHistoryKeys(keymap.Model{
 			BundleAnalyserHistory: keymap.BundleAnalyserHistory,
+			BuildAnalyserHistory:  keymap.BuildAnalyserHistory,
 			LintAnalyserHistory:   keymap.LintAnalyserHistory,
-			TestsAnalyserHistory:  keymap.TestsAnalyserHistory,
 		})
 	}
 
@@ -220,14 +222,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m Model) getFilteredMetrics() []data.BuildBenchmark {
+func readAllMetrics() ([]data.TestBenchmark, error) {
+	var metrics []data.TestBenchmark
+
+	_bytes, err := os.ReadFile(constants.TestAnalyserFilePath)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := json.Unmarshal(_bytes, &metrics); err != nil {
+		return nil, err
+	}
+
+	return metrics, nil
+}
+
+func (m Model) getFilteredMetrics() []data.TestBenchmark {
 	if m.search.Value() == "" {
 		return m.metrics
 	}
 
-	filtered := make([]data.BuildBenchmark, 0)
+	filtered := make([]data.TestBenchmark, 0)
 	for _, metric := range m.metrics {
-		if strings.Contains(metric.AppName, m.search.Value()) || strings.Contains(metric.Description, m.search.Value()) {
+		if strings.Contains(metric.Project, m.search.Value()) || strings.Contains(metric.Description, m.search.Value()) {
 			filtered = append(filtered, metric)
 		}
 	}

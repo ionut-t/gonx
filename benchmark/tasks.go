@@ -25,6 +25,7 @@ var tasks = [...]string{
 	"Bundle analyser",
 	"Build analyser",
 	"Lint analyser",
+	"Test analyser",
 }
 
 type taskType int
@@ -33,6 +34,7 @@ const (
 	bundleAnalyserTask taskType = iota
 	buildAnalyserTask
 	lintAnalyserTask
+	testsAnalyserTask
 )
 
 type taskMsg taskType
@@ -118,7 +120,7 @@ func newTasksList(width, height int) tasksModel {
 	}
 
 	tasksList.SetWidth(width)
-	
+
 	listHelp := help.New(width, 10)
 
 	listHelp.SetKeyMap(keymap.CombineKeys(keymap.ListKeyMap, keymap.Model{
@@ -149,6 +151,14 @@ func newTasksList(width, height int) tasksModel {
 				fmt.Sprintf("%s %s",
 					styles.Subtext0.Render(keymap.LintAnalyserHistory.Help().Key),
 					styles.Overlay1.Render(keymap.LintAnalyserHistory.Help().Desc),
+				),
+			),
+		lipgloss.NewStyle().
+			Padding(0, 1).
+			Render(
+				fmt.Sprintf("%s %s",
+					styles.Subtext0.Render(keymap.TestsAnalyserHistory.Help().Key),
+					styles.Overlay1.Render(keymap.TestsAnalyserHistory.Help().Desc),
 				),
 			),
 	)

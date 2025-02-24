@@ -57,6 +57,7 @@ func New(width, height int) Model {
 		helpMenu.SetKeyMap(keymap.Model{
 			BundleAnalyserHistory: keymap.BundleAnalyserHistory,
 			BuildAnalyserHistory:  keymap.BuildAnalyserHistory,
+			TestsAnalyserHistory:  keymap.TestsAnalyserHistory,
 			Back:                  keymap.Back,
 			Quit:                  keymap.Quit,
 			Help:                  keymap.Help,
@@ -65,6 +66,7 @@ func New(width, height int) Model {
 		helpMenu.CombineWithHistoryKeys(keymap.Model{
 			BundleAnalyserHistory: keymap.BundleAnalyserHistory,
 			BuildAnalyserHistory:  keymap.BuildAnalyserHistory,
+			TestsAnalyserHistory:  keymap.TestsAnalyserHistory,
 		})
 	}
 
