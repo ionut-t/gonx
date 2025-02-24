@@ -113,39 +113,40 @@ func parseApps(allApps []string) ([]Application, []Library, []E2EApp) {
 		} else {
 			var projectConfig ProjectConfig
 
-			parseError := json.Unmarshal(output, &projectConfig)
+			_ = json.Unmarshal(output, &projectConfig)
 
-			if parseError != nil {
-				fmt.Printf("Failed to parse project config for %s %s", app, parseError)
+			// Ignore parsing errors for now since the project configuration it's different for each project
+			// TODO: Find a way to properly parse the project configuration for each project
+			//if parseError != nil {
+			//	fmt.Printf("Failed to parse project config for %s %s", app, parseError)
+			//	continue
+			//}
+			projectType := projectConfig.ProjectType
+			if strings.HasSuffix(app, ".e2e") {
 				continue
-			} else {
-				projectType := projectConfig.ProjectType
-				if strings.HasSuffix(app, ".e2e") {
-					continue
-				}
+			}
 
-				if strings.Contains(app, "-e2e") {
-					e2eApps = append(e2eApps, E2EApp{
-						Name: app,
-						Type: E2EType,
-					})
-					continue
-				}
+			if strings.Contains(app, "-e2e") {
+				e2eApps = append(e2eApps, E2EApp{
+					Name: app,
+					Type: E2EType,
+				})
+				continue
+			}
 
-				if ProjectType(projectType) == ApplicationType {
-					apps = append(apps, Application{
-						Name:       app,
-						OutputPath: projectConfig.Targets.Build.Options.OutputPath,
-						Type:       ApplicationType,
-					})
-				}
+			if ProjectType(projectType) == ApplicationType {
+				apps = append(apps, Application{
+					Name:       app,
+					OutputPath: projectConfig.Targets.Build.Options.OutputPath,
+					Type:       ApplicationType,
+				})
+			}
 
-				if ProjectType(projectType) == LibraryType {
-					libs = append(libs, Library{
-						Name: filepath.Base(app),
-						Type: LibraryType,
-					})
-				}
+			if ProjectType(projectType) == LibraryType {
+				libs = append(libs, Library{
+					Name: filepath.Base(app),
+					Type: LibraryType,
+				})
 			}
 		}
 	}
