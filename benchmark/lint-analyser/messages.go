@@ -19,8 +19,10 @@ type NxCacheResetStartMsg struct {
 }
 
 type LintStartMsg struct {
-	Project   workspace.Project
-	StartTime time.Time
+	Project    workspace.Project
+	StartTime  time.Time
+	CurrentRun int
+	TotalRuns  int
 }
 
 type WriteStatsStartMsg struct {

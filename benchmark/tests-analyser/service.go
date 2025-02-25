@@ -58,7 +58,7 @@ func startBenchmark(projects []workspace.Project, description string, count int)
 	// - For each app:
 	//   - For each run (count times):
 	//     - NxCacheResetStartMsg (1)
-	//     - TestStartMsg + TestCompleteMsg/TestFailedMsg (2)
+	//     - TestsStartMsg + TestsCompleteMsg/TestsFailedMsg (2)
 	//   - After all runs:
 	//     - WriteStatsStartMsg + WriteStatsCompleteMsg/WriteStatsFailedMsg (2)
 	totalProcesses := 1 + len(projects)*(3*count+2)
@@ -94,7 +94,7 @@ func startBenchmark(projects []workspace.Project, description string, count int)
 				if err := cmdReset.Run(); err != nil {
 					// If reset fails, send failed messages for all projects
 					for _, app := range projects {
-						results <- TestFailedMsg{
+						results <- TestsFailedMsg{
 							Project: app,
 							Error:   fmt.Errorf("nx reset failed: %v", err),
 						}
@@ -103,9 +103,11 @@ func startBenchmark(projects []workspace.Project, description string, count int)
 				}
 
 				// Send start message
-				results <- TestStartMsg{
-					Project:   project,
-					StartTime: time.Now(),
+				results <- TestsStartMsg{
+					Project:    project,
+					StartTime:  time.Now(),
+					CurrentRun: i + 1,
+					TotalRuns:  count,
 				}
 
 				startTime := time.Now()
@@ -114,7 +116,7 @@ func startBenchmark(projects []workspace.Project, description string, count int)
 				cmdTest := exec.Command("nx", "test", project.GetName())
 
 				if err := cmdTest.Run(); err != nil {
-					results <- TestFailedMsg{
+					results <- TestsFailedMsg{
 						Project:  project,
 						RunIndex: i,
 						EndTime:  time.Now(),
@@ -127,7 +129,7 @@ func startBenchmark(projects []workspace.Project, description string, count int)
 
 				durations[i] = duration
 
-				results <- TestCompleteMsg{
+				results <- TestsCompleteMsg{
 					Project:  project,
 					Duration: duration,
 				}

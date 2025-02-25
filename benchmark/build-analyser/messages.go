@@ -18,8 +18,10 @@ type NxCacheResetStartMsg struct {
 }
 
 type BuildStartMsg struct {
-	App       string
-	StartTime time.Time
+	App        string
+	StartTime  time.Time
+	CurrentRun int
+	TotalRuns  int
 }
 
 type WriteStatsStartMsg struct {

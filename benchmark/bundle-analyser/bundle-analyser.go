@@ -2,10 +2,12 @@ package bundle_analyser
 
 import (
 	"fmt"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/ionut-t/gonx/internal/keymap"
 	"github.com/ionut-t/gonx/internal/messages"
 	"github.com/ionut-t/gonx/ui/input"
 	"github.com/ionut-t/gonx/ui/styles"
@@ -102,7 +104,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case StartMsg:
 		m.completed = 0
 		m.results = make([]BundleBenchmark, 0)
-		m.suspense = suspense.New("Starting benchmark...", true)
+		m.suspense = suspense.New("Starting bundle benchmark", true)
 		m.progress = progress.New(progress.WithDefaultGradient())
 		m.progress.Width = m.width - padding*2
 		m.progress.PercentageStyle = styles.Primary
@@ -122,15 +124,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.suspense.Spinner.Tick
 
 	case BuildStartMsg:
-		m.suspense.Message = fmt.Sprintf("Building %s application...", styles.Primary.Bold(true).Render(msg.App))
+		m.suspense.Message = fmt.Sprintf("Building %s application", styles.Primary.Bold(true).Render(msg.App))
 		return m, m.progress.IncrPercent(m.getProgressIncrement())
 
 	case CalculateBundleSizeMsg:
-		m.suspense.Message = fmt.Sprintf("Calculating bundle size for %s application...", styles.Primary.Bold(true).Render(msg.App))
+		m.suspense.Message = fmt.Sprintf("Calculating bundle size for %s application", styles.Primary.Bold(true).Render(msg.App))
 		return m, m.progress.IncrPercent(m.getProgressIncrement())
 
 	case WriteStatsMsg:
-		m.suspense.Message = fmt.Sprintf("Writing stats for %s application...", styles.Primary.Bold(true).Render(msg.App))
+		m.suspense.Message = fmt.Sprintf("Writing stats for %s application", styles.Primary.Bold(true).Render(msg.App))
 		return m, m.progress.IncrPercent(m.getProgressIncrement())
 
 	case BuildCompleteMsg:
@@ -177,12 +179,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case tea.KeyMsg:
-		keyMsg := msg.String()
-		switch keyMsg {
-		case "esc":
-			return m, messages.Dispatch(messages.NavigateToViewMsg(
-				utils.Ternary(m.view == descriptionView, 1, 0)),
-			)
+		switch {
+		case key.Matches(msg, keymap.Back):
+			if m.view != buildView {
+				return m, messages.Dispatch(messages.NavigateToViewMsg(
+					utils.Ternary(m.view == descriptionView, 1, 0)),
+				)
+			}
 		}
 	}
 

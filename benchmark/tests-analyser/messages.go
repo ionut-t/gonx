@@ -18,9 +18,11 @@ type NxCacheResetStartMsg struct {
 	StartTime time.Time
 }
 
-type TestStartMsg struct {
-	Project   workspace.Project
-	StartTime time.Time
+type TestsStartMsg struct {
+	Project    workspace.Project
+	StartTime  time.Time
+	CurrentRun int
+	TotalRuns  int
 }
 
 type WriteStatsStartMsg struct {
@@ -40,12 +42,12 @@ type WriteStatsFailedMsg struct {
 	Error   error
 }
 
-type TestCompleteMsg struct {
+type TestsCompleteMsg struct {
 	Project  workspace.Project
 	Duration float64
 }
 
-type TestFailedMsg struct {
+type TestsFailedMsg struct {
 	Project  workspace.Project
 	RunIndex int
 	EndTime  time.Time

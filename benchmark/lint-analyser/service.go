@@ -104,8 +104,10 @@ func startBenchmark(projects []workspace.Project, description string, count int)
 
 				// Send start message
 				results <- LintStartMsg{
-					Project:   project,
-					StartTime: time.Now(),
+					Project:    project,
+					StartTime:  time.Now(),
+					CurrentRun: i + 1,
+					TotalRuns:  count,
 				}
 
 				startTime := time.Now()

@@ -108,8 +108,10 @@ func startBenchmark(apps []string, description string, count int) tea.Cmd {
 
 				// Send start message
 				results <- BuildStartMsg{
-					App:       app,
-					StartTime: startTime,
+					App:        app,
+					StartTime:  startTime,
+					CurrentRun: i + 1,
+					TotalRuns:  count,
 				}
 
 				// Run build

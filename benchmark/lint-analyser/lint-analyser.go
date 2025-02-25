@@ -2,15 +2,18 @@ package lint_analyser
 
 import (
 	"fmt"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	form "github.com/ionut-t/gonx/benchmark/shared-form"
+	"github.com/ionut-t/gonx/internal/keymap"
 	"github.com/ionut-t/gonx/internal/messages"
 	"github.com/ionut-t/gonx/ui/styles"
 	"github.com/ionut-t/gonx/ui/suspense"
 	"github.com/ionut-t/gonx/ui/viewport"
+	"github.com/ionut-t/gonx/utils"
 	"github.com/ionut-t/gonx/workspace"
 	"strings"
 	"time"
@@ -108,7 +111,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case StartMsg:
 		m.completed = 0
 		m.results = make([]LintBenchmark, 0)
-		m.suspense = suspense.New("Starting benchmark...", true)
+		m.suspense = suspense.New("Starting lint benchmark", true)
 		m.progress = progress.New(progress.WithDefaultGradient())
 		m.progress.Width = m.width - padding*2
 		m.progress.PercentageStyle = styles.Primary
@@ -128,9 +131,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.suspense.Spinner.Tick
 
 	case LintStartMsg:
-		m.suspense.Message = fmt.Sprintf("Linting %s %s...",
+		m.suspense.Message = fmt.Sprintf("Linting %s %s (%d/%d)",
 			styles.Primary.Bold(true).Render(msg.Project.GetName()),
 			msg.Project.GetType(),
+			msg.CurrentRun,
+			msg.TotalRuns,
 		)
 		return m, m.progress.IncrPercent(m.getProgressIncrement())
 
@@ -179,11 +184,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case tea.KeyMsg:
-		keyMsg := msg.String()
-		switch keyMsg {
-		case "esc":
-			if m.view != formView {
-				return m, messages.Dispatch(messages.NavigateToViewMsg(1))
+		switch {
+		case key.Matches(msg, keymap.Back):
+			if m.view != buildView {
+				return m, messages.Dispatch(messages.NavigateToViewMsg(
+					utils.Ternary(m.view == formView, 1, 0)),
+				)
 			}
 		}
 	}

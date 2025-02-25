@@ -2,15 +2,18 @@ package build_analyser
 
 import (
 	"fmt"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	form "github.com/ionut-t/gonx/benchmark/shared-form"
+	"github.com/ionut-t/gonx/internal/keymap"
 	"github.com/ionut-t/gonx/internal/messages"
 	"github.com/ionut-t/gonx/ui/styles"
 	"github.com/ionut-t/gonx/ui/suspense"
 	"github.com/ionut-t/gonx/ui/viewport"
+	"github.com/ionut-t/gonx/utils"
 	"strings"
 	"time"
 )
@@ -126,7 +129,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.suspense.Spinner.Tick
 
 	case BuildStartMsg:
-		m.suspense.Message = fmt.Sprintf("Building %s application...", styles.Primary.Bold(true).Render(msg.App))
+		m.suspense.Message = fmt.Sprintf(
+			"Building %s application (%d/%d)",
+			styles.Primary.Bold(true).Render(msg.App),
+			msg.CurrentRun,
+			msg.TotalRuns,
+		)
 		return m, m.progress.IncrPercent(m.getProgressIncrement())
 
 	case BuildCompleteMsg:
@@ -139,7 +147,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleBenchmarkBuild()
 
 	case WriteStatsStartMsg:
-		m.suspense.Message = fmt.Sprintf("Writing stats for %s application...", styles.Primary.Bold(true).Render(msg.App))
+		m.suspense.Message = fmt.Sprintf("Writing stats for %s application", styles.Primary.Bold(true).Render(msg.App))
 		return m, m.progress.IncrPercent(m.getProgressIncrement())
 
 	case WriteStatsCompleteMsg:
@@ -171,11 +179,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case tea.KeyMsg:
-		keyMsg := msg.String()
-		switch keyMsg {
-		case "esc":
-			if m.view != formView {
-				return m, messages.Dispatch(messages.NavigateToViewMsg(1))
+		switch {
+		case key.Matches(msg, keymap.Back):
+			if m.view != buildView {
+				return m, messages.Dispatch(messages.NavigateToViewMsg(
+					utils.Ternary(m.view == formView, 1, 0)),
+				)
 			}
 		}
 	}
