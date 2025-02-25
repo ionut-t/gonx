@@ -1,7 +1,10 @@
 package constants
 
 const (
-	Folder                 = ".gonx"
+	Folder = ".gonx"
+
+	CacheFilePath = Folder + "/gonx-cache.json"
+
 	BenchmarkFolderPath    = Folder + "/benchmarks"
 	BundleAnalyserFile     = "bundle-benchmarks.json"
 	BundleAnalyserFilePath = BenchmarkFolderPath + "/" + BundleAnalyserFile
