@@ -25,7 +25,7 @@ var tasks = [...]string{
 	"Bundle analyser",
 	"Build analyser",
 	"Lint analyser",
-	"Tests analyser",
+	"Tests analyser (experimental)",
 }
 
 type taskType int
